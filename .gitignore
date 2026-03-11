@@ -1,3 +1,5 @@
 .DS_Store
 *.bak
 start here.py
+node_modules/
+.env
