@@ -445,6 +445,7 @@ const detectIssue = (description, urgencyValue, fileName) => {
 };
 
 const renderMatches = (trade) => {
+    if (!matchList) return;
     const relevantBusinesses = businesses[trade] || businesses.allround;
 
     matchList.innerHTML = relevantBusinesses.map((business) => {
@@ -468,6 +469,7 @@ const renderMatches = (trade) => {
 };
 
 const renderTags = (tags, hasFile) => {
+    if (!analysisTags) return;
     const fileTag = hasFile ? ['Upload erkannt'] : ['Textanalyse'];
     const allTags = [...tags, ...fileTag];
 
@@ -475,13 +477,13 @@ const renderTags = (tags, hasFile) => {
 };
 
 const setAnalysisResult = (result, hasFile) => {
-    analysisTitle.textContent = result.title;
-    analysisSummary.textContent = result.summary;
-    analysisTrade.textContent = result.trade;
-    analysisPriority.textContent = result.priority;
-    analysisConfidence.textContent = result.confidence;
+    if (analysisTitle) analysisTitle.textContent = result.title;
+    if (analysisSummary) analysisSummary.textContent = result.summary;
+    if (analysisTrade) analysisTrade.textContent = result.trade;
+    if (analysisPriority) analysisPriority.textContent = result.priority;
+    if (analysisConfidence) analysisConfidence.textContent = result.confidence;
     renderTags(result.tags, hasFile);
-    if (Array.isArray(result.matches) && result.matches.length > 0) {
+    if (Array.isArray(result.matches) && result.matches.length > 0 && matchList) {
         matchList.innerHTML = result.matches.map((business) => {
             return `
                 <article class="match-card">
@@ -561,9 +563,12 @@ const syncFileToAnalysisUpload = (file) => {
         const transfer = new DataTransfer();
         transfer.items.add(file);
         issueMedia.files = transfer.files;
+        issueMedia.dispatchEvent(new Event('change', { bubbles: true }));
     }
 
-    uploadHint.textContent = `Ausgewaehlt: ${file.name}`;
+    if (uploadHint) {
+        uploadHint.textContent = `Ausgewaehlt: ${file.name}`;
+    }
 };
 
 const syncHeroDescription = () => {
@@ -627,7 +632,9 @@ updateAuthUi();
 if (issueMedia) {
     issueMedia.addEventListener('change', () => {
         const file = issueMedia.files[0];
-        uploadHint.textContent = file ? `Ausgewaehlt: ${file.name}` : 'PNG, JPG oder MP4 fuer den Demo-Flow';
+        if (uploadHint) {
+            uploadHint.textContent = file ? `Ausgewaehlt: ${file.name}` : 'PNG, JPG oder MP4 fuer den Demo-Flow';
+        }
     });
 }
 
@@ -656,6 +663,8 @@ if (heroServiceInput) {
     syncHeroDescription();
 }
 
+/* Form submit is now handled inline in index.html */
+/*
 if (aiIssueForm) {
     aiIssueForm.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -669,17 +678,17 @@ if (aiIssueForm) {
         const mediaFile = issueMedia.files[0] || heroPhotoInput?.files[0];
         const fileName = mediaFile ? mediaFile.name : '';
 
-        if (!description) {
-            analysisTitle.textContent = 'Bitte Problem beschreiben';
-            analysisSummary.textContent = 'Nutzen Sie die Suchleiste oben, damit die KI das Problem auswerten kann.';
+        if (!description && !mediaFile) {
+            if (analysisTitle) analysisTitle.textContent = 'Bitte Problem beschreiben';
+            if (analysisSummary) analysisSummary.textContent = 'Nutzen Sie die Suchleiste oben, damit die KI das Problem auswerten kann.';
             heroServiceInput?.focus();
             return;
         }
 
         try {
             setAnalysisLoading(true);
-            analysisTitle.textContent = 'KI analysiert das Problem';
-            analysisSummary.textContent = 'ChatGPT bewertet gerade Beschreibung und Bildmaterial und sucht passende Betriebe.';
+            if (analysisTitle) analysisTitle.textContent = 'KI analysiert das Problem';
+            if (analysisSummary) analysisSummary.textContent = 'ChatGPT bewertet gerade Beschreibung und Bildmaterial und sucht passende Betriebe.';
 
             const apiResult = await analyzeWithApi({
                 description,
@@ -696,16 +705,20 @@ if (aiIssueForm) {
                 ...fallbackResult,
                 summary: `${fallbackResult.summary} ChatGPT war gerade nicht erreichbar, daher wurde das lokale Fallback verwendet.`
             }, Boolean(mediaFile));
-            analysisSummary.textContent = `${error.message} Lokales Fallback verwendet.`;
+            if (analysisSummary) analysisSummary.textContent = `${error.message} Lokales Fallback verwendet.`;
         } finally {
             setAnalysisLoading(false);
-            document.getElementById('analysisPanel').scrollIntoView({
-                behavior: 'smooth',
-                block: 'nearest'
-            });
+            const panel = document.getElementById('analysisPanel');
+            if (panel) {
+                panel.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+            }
         }
     });
 }
+*/
 
 if (heroServiceSearch) {
     heroServiceSearch.addEventListener('submit', (event) => {

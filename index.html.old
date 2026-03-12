@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nailit | KI findet das Problem und den passenden Betrieb</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="site-shell">
+        <nav class="navbar" id="navbar">
+            <div class="container nav-container">
+                <a href="#home" class="logo">nail<span>it</span></a>
+                <ul class="nav-links" id="navLinks">
+                    <li><a href="#ai-diagnose">KI-Diagnose</a></li>
+                    <li><a href="#accounts">Konten</a></li>
+                    <li><a href="#betriebe">Betriebe</a></li>
+                    <li><a href="#matching">Matching</a></li>
+                </ul>
+                <div class="nav-auth">
+                    <a href="#accounts" class="nav-login" id="navLoginButton" data-auth-view="login">Anmelden</a>
+                    <a href="#accounts" class="nav-cta" id="navRegisterButton" data-auth-view="register">Registrieren</a>
+                    <div class="nav-user-status is-hidden" id="navUserStatus">
+                        <div>
+                            <strong id="navUserName">-</strong>
+                            <span id="navUserRole">-</span>
+                        </div>
+                        <button type="button" class="nav-logout" id="logoutButton">Logout</button>
+                    </div>
+                </div>
+                <div class="hamburger" id="hamburger" aria-label="Navigation umschalten" aria-expanded="false" role="button" tabindex="0">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+            </div>
+        </nav>
+
+        <header class="hero" id="home">
+            <div class="container">
+                <div class="hero-center">
+                    <form class="hero-service-search" id="heroServiceSearch">
+                        <div class="search-row">
+                            <label class="hero-service-field" for="heroServiceInput">Dienstsuche</label>
+                            <label class="hero-service-icon" id="heroPhotoTrigger" for="heroPhotoInput" aria-label="Foto hochladen oder aufnehmen">
+                                <i class="fas fa-camera"></i>
+                            </label>
+                            <input type="file" id="heroPhotoInput" name="heroPhotoInput" class="hero-photo-input" accept="image/*" capture="environment">
+                            <input type="text" id="heroServiceInput" name="heroServiceInput" placeholder="Welches Problem oder welche Dienste suchen Sie?">
+                        </div>
+                        <div class="search-row">
+                            <div class="region-select-wrapper">
+                                <i class="fas fa-map-marker-alt"></i>
+                                <select id="heroRegionSelect" name="heroRegionSelect" class="region-select">
+                                    <option value="">Region waehlen</option>
+                                    <option value="berlin">Berlin</option>
+                                    <option value="hamburg">Hamburg</option>
+                                    <option value="muenchen">Muenchen</option>
+                                    <option value="koeln">Koeln</option>
+                                    <option value="frankfurt">Frankfurt</option>
+                                    <option value="stuttgart">Stuttgart</option>
+                                    <option value="duesseldorf">Duesseldorf</option>
+                                    <option value="dortmund">Dortmund</option>
+                                    <option value="essen">Essen</option>
+                                    <option value="leipzig">Leipzig</option>
+                                    <option value="bremen">Bremen</option>
+                                    <option value="dresden">Dresden</option>
+                                    <option value="hannover">Hannover</option>
+                                    <option value="nuremberg">Nuremberg</option>
+                                    <option value="duisburg">Duisburg</option>
+                                    <option value="bochum">Bochum</option>
+                                    <option value="wuppertal">Wuppertal</option>
+                                    <option value="bielefeld">Bielefeld</option>
+                                    <option value="bonn">Bonn</option>
+                                    <option value="muenster">Muenster</option>
+                                    <option value="karlsruhe">Karlsruhe</option>
+                                    <option value="mannheim">Mannheim</option>
+                                    <option value="augsburg">Augsburg</option>
+                                    <option value="wiesbaden">Wiesbaden</option>
+                                    <option value="moenchengladbach">Moenchengladbach</option>
+                                    <option value="gelsenkirchen">Gelsenkirchen</option>
+                                    <option value="braunschweig">Braunschweig</option>
+                                    <option value="chemnitz">Chemnitz</option>
+                                    <option value="kiel">Kiel</option>
+                                    <option value="aachen">Aachen</option>
+                                    <option value="halle">Halle (Saale)</option>
+                                    <option value="magdeburg">Magdeburg</option>
+                                    <option value="freiburg">Freiburg</option>
+                                    <option value="krefeld">Krefeld</option>
+                                    <option value="luebeck">Luebeck</option>
+                                    <option value="oberhausen">Oberhausen</option>
+                                    <option value="erfurt">Erfurt</option>
+                                    <option value="mainz">Mainz</option>
+                                    <option value="rostock">Rostock</option>
+                                    <option value="kassel">Kassel</option>
+                                    <option value="hagen">Hagen</option>
+                                    <option value="hamm">Hamm</option>
+                                    <option value="saarbruecken">Saarbruecken</option>
+                                    <option value="muelheim">Muelheim an der Ruhr</option>
+                                    <option value="potsdam">Potsdam</option>
+                                    <option value="ludwigshafen">Ludwigshafen</option>
+                                    <option value="oldenburg">Oldenburg</option>
+                                    <option value="leverkusen">Leverkusen</option>
+                                    <option value="osnabrueck">Osnabrueck</option>
+                                    <option value="solingen">Solingen</option>
+                                    <option value="heidelberg">Heidelberg</option>
+                                    <option value="herne">Herne</option>
+                                    <option value="neuss">Neuss</option>
+                                    <option value="regensburg">Regensburg</option>
+                                    <option value="paderborn">Paderborn</option>
+                                    <option value="ingolstadt">Ingolstadt</option>
+                                    <option value="wuerzburg">Wuerzburg</option>
+                                    <option value="fürth">Fuerth</option>
+                                    <option value="ulm">Ulm</option>
+                                    <option value="heilbronn">Heilbronn</option>
+                                    <option value="pforzheim">Pforzheim</option>
+                                    <option value="wolfsburg">Wolfsburg</option>
+                                    <option value="goettingen">Goettingen</option>
+                                    <option value="offenbach">Offenbach</option>
+                                    <option value="bottrop">Bottrop</option>
+                                    <option value="remscheid">Remscheid</option>
+                                    <option value="trier">Trier</option>
+                                    <option value="koblenz">Koblenz</option>
+                                    <option value="erfurt">Erfurt</option>
+                                    <option value="bergisch-gladbach">Bergisch Gladbach</option>
+                                    <option value="cologne">Koeln Umgebung</option>
+                                    <option value="munich">Muenchen Umgebung</option>
+                                    <option value="frankfurt-region">Frankfurt Umgebung</option>
+                                    <option value="stuttgart-region">Stuttgart Umgebung</option>
+                                    <option value="hamburg-region">Hamburg Umgebung</option>
+                                    <option value="berlin-region">Berlin Umgebung</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Suchen</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="hero-panel reveal">
+                    <div class="hero-card hero-card-main">
+                        <div class="card-topline">KI-Workflow live auf der Startseite</div>
+                        <div class="process-list">
+                            <article class="process-item">
+                                <div class="process-icon"><i class="fas fa-cloud-arrow-up"></i></div>
+                                <div>
+                                    <h3>1. Upload</h3>
+                                    <p>Foto, Video oder Schadensbeschreibung hochladen.</p>
+                                </div>
+                            </article>
+                            <article class="process-item">
+                                <div class="process-icon"><i class="fas fa-microchip"></i></div>
+                                <div>
+                                    <h3>2. KI-Auswertung</h3>
+                                    <p>Die Plattform erkennt Ursache, Gewerk und Dringlichkeit.</p>
+                                </div>
+                            </article>
+                            <article class="process-item">
+                                <div class="process-icon"><i class="fas fa-building-circle-check"></i></div>
+                                <div>
+                                    <h3>3. Betriebsmatching</h3>
+                                    <p>Nur geeignete Betriebe mit passendem Profil werden vorgeschlagen.</p>
+                                </div>
+                            </article>
+                        </div>
+                    </div>
+                    <div class="hero-card hero-card-accent">
+                        <p>Beispiel heute</p>
+                        <strong>Wasserfleck an der Decke</strong>
+                        <span>KI erkennt moeglichen Rohr- oder Dachschaden und priorisiert Sanitair- oder Dachbetriebe.</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section class="ai-diagnose ai-modal is-hidden" id="ai-diagnose" role="dialog" aria-modal="true" aria-labelledby="aiDiagnoseTitle">
+            <div class="ai-modal-backdrop" id="aiDiagnoseBackdrop"></div>
+            <div class="container ai-modal-dialog section-grid">
+                <button type="button" class="ai-modal-close" id="aiDiagnoseClose" aria-label="KI-Diagnose schliessen">
+                    <i class="fas fa-xmark"></i>
+                </button>
+                <div class="section-copy reveal">
+                    <p class="section-label">KI-Diagnose fuer Kunden</p>
+                    <h2 id="aiDiagnoseTitle">Ein Upload reicht, damit das System das Problem einschaetzt und den richtigen Betrieb sucht.</h2>
+                    <p>Mit aktivierter ChatGPT-Anbindung analysiert die Plattform Text und optionales Bildmaterial, bewertet das Problem und priorisiert passende Betriebe.</p>
+                    <div class="feature-stack">
+                        <div class="feature-row">
+                            <i class="fas fa-eye"></i>
+                            <span>Bild- oder Videoupload fuer Schadenerkennung</span>
+                        </div>
+                        <div class="feature-row">
+                            <i class="fas fa-location-dot"></i>
+                            <span>Region und Einsatzradius fliessen ins Matching ein</span>
+                        </div>
+                        <div class="feature-row">
+                            <i class="fas fa-screwdriver-wrench"></i>
+                            <span>Automatische Zuordnung zu Gewerk und Spezialgebiet</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="ai-shell reveal">
+                    <form id="aiIssueForm" class="ai-form">
+                        <div class="upload-box">
+                            <label for="issueMedia" class="upload-label">
+                                <i class="fas fa-camera"></i>
+                                <span>Foto oder Video des Problems hochladen</span>
+                                <small id="uploadHint">PNG, JPG oder MP4 fuer den Demo-Flow</small>
+                            </label>
+                            <input type="file" id="issueMedia" name="issueMedia" accept="image/*,video/*">
+                        </div>
+                        <input type="hidden" id="issueDescription" name="issueDescription">
+                        <div class="merged-description-panel">
+                            <span class="merged-description-label">Gemeinsame Problembeschreibung</span>
+                            <p id="mergedDescriptionPreview">Nutzen Sie die Suchleiste oben, um Ihr Problem zu beschreiben.</p>
+                        </div>
+                        <div class="form-row three-columns">
+                            <div class="form-group">
+                                <label for="issueLocation">PLZ / Ort</label>
+                                <input type="text" id="issueLocation" name="issueLocation" required placeholder="10115 Berlin">
+                            </div>
+                            <div class="form-group">
+                                <label for="issueRegion">Region</label>
+                                <select id="issueRegion" name="issueRegion" required>
+                                    <option value="">Region waehlen</option>
+                                    <option value="berlin">Berlin</option>
+                                    <option value="hamburg">Hamburg</option>
+                                    <option value="muenchen">Muenchen</option>
+                                    <option value="koeln">Koeln</option>
+                                    <option value="frankfurt">Frankfurt</option>
+                                    <option value="stuttgart">Stuttgart</option>
+                                    <option value="duesseldorf">Duesseldorf</option>
+                                    <option value="dortmund">Dortmund</option>
+                                    <option value="essen">Essen</option>
+                                    <option value="leipzig">Leipzig</option>
+                                    <option value="bremen">Bremen</option>
+                                    <option value="dresden">Dresden</option>
+                                    <option value="hannover">Hannover</option>
+                                    <option value="nuremberg">Nuremberg</option>
+                                    <option value="duisburg">Duisburg</option>
+                                    <option value="bochum">Bochum</option>
+                                    <option value="wuppertal">Wuppertal</option>
+                                    <option value="bielefeld">Bielefeld</option>
+                                    <option value="bonn">Bonn</option>
+                                    <option value="muenster">Muenster</option>
+                                    <option value="karlsruhe">Karlsruhe</option>
+                                    <option value="mannheim">Mannheim</option>
+                                    <option value="augsburg">Augsburg</option>
+                                    <option value="wiesbaden">Wiesbaden</option>
+                                    <option value="moenchengladbach">Moenchengladbach</option>
+                                    <option value="gelsenkirchen">Gelsenkirchen</option>
+                                    <option value="braunschweig">Braunschweig</option>
+                                    <option value="chemnitz">Chemnitz</option>
+                                    <option value="kiel">Kiel</option>
+                                    <option value="aachen">Aachen</option>
+                                    <option value="halle">Halle (Saale)</option>
+                                    <option value="magdeburg">Magdeburg</option>
+                                    <option value="freiburg">Freiburg</option>
+                                    <option value="krefeld">Krefeld</option>
+                                    <option value="luebeck">Luebeck</option>
+                                    <option value="oberhausen">Oberhausen</option>
+                                    <option value="erfurt">Erfurt</option>
+                                    <option value="mainz">Mainz</option>
+                                    <option value="rostock">Rostock</option>
+                                    <option value="kassel">Kassel</option>
+                                    <option value="hagen">Hagen</option>
+                                    <option value="hamm">Hamm</option>
+                                    <option value="saarbruecken">Saarbruecken</option>
+                                    <option value="muelheim">Muelheim an der Ruhr</option>
+                                    <option value="potsdam">Potsdam</option>
+                                    <option value="ludwigshafen">Ludwigshafen</option>
+                                    <option value="oldenburg">Oldenburg</option>
+                                    <option value="leverkusen">Leverkusen</option>
+                                    <option value="osnabrueck">Osnabrueck</option>
+                                    <option value="solingen">Solingen</option>
+                                    <option value="heidelberg">Heidelberg</option>
+                                    <option value="herne">Herne</option>
+                                    <option value="neuss">Neuss</option>
+                                    <option value="regensburg">Regensburg</option>
+                                    <option value="paderborn">Paderborn</option>
+                                    <option value="ingolstadt">Ingolstadt</option>
+                                    <option value="wuerzburg">Wuerzburg</option>
+                                    <option value="fürth">Fuerth</option>
+                                    <option value="ulm">Ulm</option>
+                                    <option value="heilbronn">Heilbronn</option>
+                                    <option value="pforzheim">Pforzheim</option>
+                                    <option value="wolfsburg">Wolfsburg</option>
+                                    <option value="goettingen">Goettingen</option>
+                                    <option value="offenbach">Offenbach</option>
+                                    <option value="bottrop">Bottrop</option>
+                                    <option value="remscheid">Remscheid</option>
+                                    <option value="trier">Trier</option>
+                                    <option value="koblenz">Koblenz</option>
+                                    <option value="bergisch-gladbach">Bergisch Gladbach</option>
+                                    <option value="cologne">Koeln Umgebung</option>
+                                    <option value="munich">Muenchen Umgebung</option>
+                                    <option value="frankfurt-region">Frankfurt Umgebung</option>
+                                    <option value="stuttgart-region">Stuttgart Umgebung</option>
+                                    <option value="hamburg-region">Hamburg Umgebung</option>
+                                    <option value="berlin-region">Berlin Umgebung</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="urgency">Dringlichkeit</label>
+                                <select id="urgency" name="urgency" required>
+                                    <option value="">Auswaehlen</option>
+                                    <option value="notfall">Notfall heute</option>
+                                    <option value="hoch">Hoch</option>
+                                    <option value="mittel">Mittel</option>
+                                    <option value="niedrig">Niedrig</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="propertyType">Objektart</label>
+                                <select id="propertyType" name="propertyType" required>
+                                    <option value="">Auswaehlen</option>
+                                    <option value="wohnung">Wohnung</option>
+                                    <option value="haus">Haus</option>
+                                    <option value="buero">Buero</option>
+                                    <option value="gewerbe">Gewerbeobjekt</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary full-width">KI-Analyse starten</button>
+                    </form>
+                    <div class="analysis-panel" id="analysisPanel">
+                        <div class="analysis-head">
+                            <p class="section-label">Analyseergebnis</p>
+                            <h3 id="analysisTitle">Noch keine Analyse gestartet</h3>
+                            <p id="analysisSummary">Nach dem Upload zeigt die Demo hier Problemklasse, moegliche Ursache und passende Betriebe.</p>
+                        </div>
+                        <div class="analysis-metrics">
+                            <div>
+                                <span>Erkanntes Gewerk</span>
+                                <strong id="analysisTrade">-</strong>
+                            </div>
+                            <div>
+                                <span>Prioritaet</span>
+                                <strong id="analysisPriority">-</strong>
+                            </div>
+                            <div>
+                                <span>KI-Sicherheit</span>
+                                <strong id="analysisConfidence">-</strong>
+                            </div>
+                        </div>
+                        <div class="analysis-tags" id="analysisTags"></div>
+                        <div class="match-list" id="matchList">
+                            <article class="match-card placeholder-card">
+                                <strong>Passende Betriebe erscheinen hier</strong>
+                                <p>Die Demo erstellt nach der Analyse drei Vorschlaege mit Gewerk, Entfernung und Verfuegbarkeit.</p>
+                            </article>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="accounts auth-modal is-hidden" id="accounts" role="dialog" aria-modal="true" aria-labelledby="authModalTitle">
+            <div class="auth-modal-backdrop" id="authModalBackdrop"></div>
+            <div class="container auth-modal-dialog">
+                <button type="button" class="auth-modal-close" id="authModalClose" aria-label="Anmeldung schliessen">
+                    <i class="fas fa-xmark"></i>
+                </button>
+                <div class="section-header reveal">
+                    <p class="section-label">Zugang</p>
+                    <h2 id="authModalTitle">Ein gemeinsamer Zugang fuer Kunden und Betriebe, mit Auswahl des Kontotyps direkt im Formular.</h2>
+                </div>
+                <div class="auth-layout">
+                    <article class="auth-overview reveal">
+                        <div class="account-card-top">
+                            <p class="card-topline">Ein Zugang, zwei Rollen</p>
+                            <h3>Kunde oder Betrieb wird erst im Formular ausgewaehlt, nicht mehr ueber getrennte Einstiege.</h3>
+                        </div>
+                        <ul class="account-points">
+                            <li>Kunden koennen Probleme hochladen, Analysen ansehen und Betriebe kontaktieren</li>
+                            <li>Betriebe hinterlegen Gewerke, Einsatzgebiet und Verfuegbarkeit</li>
+                            <li>Anmelden und Registrieren laufen ueber denselben Auth-Bereich</li>
+                        </ul>
+                    </article>
+                    <article class="auth-card reveal">
+                        <div class="auth-switch" role="tablist" aria-label="Authentifizierungsauswahl">
+                            <button type="button" class="auth-tab is-active" id="authRegisterTab" data-auth-view="register">Registrieren</button>
+                            <button type="button" class="auth-tab" id="authLoginTab" data-auth-view="login">Anmelden</button>
+                        </div>
+
+                        <div class="session-panel is-hidden" id="sessionPanel">
+                            <p class="card-topline">Aktive Sitzung</p>
+                            <h3 id="sessionTitle">Nicht angemeldet</h3>
+                            <p id="sessionSummary">Registriere dich oder melde dich an, damit die Plattform dein Konto erkennt.</p>
+                        </div>
+
+                        <form id="registerForm" class="account-form auth-form is-active">
+                            <fieldset class="role-choice-group">
+                                <legend>Ich moechte mich registrieren als</legend>
+                                <label class="role-choice">
+                                    <input type="radio" name="registerRole" value="kunde" required>
+                                    <span>Kunde</span>
+                                </label>
+                                <label class="role-choice">
+                                    <input type="radio" name="registerRole" value="betrieb" required>
+                                    <span>Betrieb</span>
+                                </label>
+                            </fieldset>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="registerName">Name / Firmenname</label>
+                                    <input type="text" id="registerName" name="registerName" required placeholder="Julia Neuenburg oder Muster Sanitair GmbH">
+                                </div>
+                                <div class="form-group">
+                                    <label for="registerEmail">E-Mail</label>
+                                    <input type="email" id="registerEmail" name="registerEmail" required placeholder="name@email.de" autocomplete="email">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="registerPassword">Passwort</label>
+                                    <input type="password" id="registerPassword" name="registerPassword" required minlength="8" placeholder="Mindestens 8 Zeichen" autocomplete="new-password">
+                                </div>
+                                <div class="form-group">
+                                    <label for="registerPasswordRepeat">Passwort wiederholen</label>
+                                    <input type="password" id="registerPasswordRepeat" name="registerPasswordRepeat" required minlength="8" placeholder="Passwort wiederholen" autocomplete="new-password">
+                                </div>
+                            </div>
+                            <div class="form-row business-only-field" id="registerBusinessFields">
+                                <div class="form-group">
+                                    <label for="registerTrade">Gewerk</label>
+                                    <select id="registerTrade" name="registerTrade">
+                                        <option value="">Auswaehlen</option>
+                                        <option value="sanitaer">Sanitaer</option>
+                                        <option value="dach">Dach</option>
+                                        <option value="elektro">Elektro</option>
+                                        <option value="maler">Maler</option>
+                                        <option value="allround">Allround / Generalunternehmer</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label for="registerRadius">Einsatzradius</label>
+                                    <input type="text" id="registerRadius" name="registerRadius" placeholder="30 km um Berlin">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary full-width">Registrieren</button>
+                            <div class="inline-success" id="registerSuccess"></div>
+                            <div class="inline-error" id="registerError"></div>
+                        </form>
+
+                        <form id="loginForm" class="account-form auth-form">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="loginEmail">E-Mail</label>
+                                    <input type="email" id="loginEmail" name="loginEmail" required placeholder="name@email.de" autocomplete="email">
+                                </div>
+                                <div class="form-group">
+                                    <label for="loginPassword">Passwort</label>
+                                    <input type="password" id="loginPassword" name="loginPassword" required placeholder="Passwort eingeben" autocomplete="current-password">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary full-width">Anmelden</button>
+                            <div class="inline-success" id="loginSuccess"></div>
+                            <div class="inline-error" id="loginError"></div>
+                        </form>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="betriebe" id="betriebe">
+            <div class="container section-grid reverse-layout">
+                <div class="network-board reveal">
+                    <div class="board-stat-grid">
+                        <div class="board-stat">
+                            <strong>Verifizierte Profile</strong>
+                            <span>Lizenz, Versicherung und Bewertungen im Konto sichtbar</span>
+                        </div>
+                        <div class="board-stat">
+                            <strong>KI-Filter</strong>
+                            <span>Matching nach Gewerk, Region, Kapazitaet und Problemtyp</span>
+                        </div>
+                        <div class="board-stat">
+                            <strong>Auftragsqualitaet</strong>
+                            <span>Betriebe erhalten bereits strukturierte Schadendaten</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="section-copy reveal">
+                    <p class="section-label">Fuer Betriebe</p>
+                    <h2>Die Plattform soll nicht einfach Leads verschicken, sondern vorqualifizierte Problemfaelle liefern.</h2>
+                    <p>Ein Betriebskonto ist mehr als nur eine Kontaktkarte: Es enthaelt Leistungen, Spezialgebiete, Einsatzorte, Notdienststatus und freie Kapazitaet. Genau diese Daten werden spaeter von der KI beim Matching beruecksichtigt.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="matching" id="matching">
+            <div class="container">
+                <div class="section-header reveal">
+                    <p class="section-label">So entscheidet das System</p>
+                    <h2>Die Vermittlung kombiniert Problemtyp, Dringlichkeit, Region und Betriebsprofil.</h2>
+                </div>
+                <div class="matching-grid">
+                    <article class="matching-card reveal">
+                        <span>01</span>
+                        <h3>Problem erkennen</h3>
+                        <p>Die KI wertet Upload und Text aus und erkennt Hinweise wie Wasser, Riss, Elektrik, Schimmel oder Dachschaden.</p>
+                    </article>
+                    <article class="matching-card reveal">
+                        <span>02</span>
+                        <h3>Gewerk ableiten</h3>
+                        <p>Aus Schadenbild und Kontext entsteht eine Empfehlung fuer das passende Gewerk oder ein kombiniertes Team.</p>
+                    </article>
+                    <article class="matching-card reveal">
+                        <span>03</span>
+                        <h3>Betriebe ranken</h3>
+                        <p>Die Plattform priorisiert verfuegbare Betriebe mit passender Spezialisierung, gutem Score und kurzer Anfahrt.</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <footer class="footer">
+            <div class="container footer-grid">
+                <div class="footer-brand">
+                    <a href="#home" class="logo">nail<span>it</span></a>
+                    <p>Eine Plattformidee fuer KI-gestuetzte Schadenerkennung, smarte Vermittlung und einen gemeinsamen Zugang fuer Kunden und Betriebe.</p>
+                </div>
+                <div class="footer-column">
+                    <h3>Plattform</h3>
+                    <a href="#ai-diagnose">KI-Diagnose</a>
+                    <a href="#accounts">Konten</a>
+                    <a href="#matching">Matching</a>
+                </div>
+                <div class="footer-column">
+                    <h3>Nutzer</h3>
+                    <a href="#accounts">Registrieren</a>
+                    <a href="#accounts">Anmelden</a>
+                    <a href="#betriebe">Betriebsprofil</a>
+                </div>
+                <div class="footer-column">
+                    <h3>Status</h3>
+                    <a href="#">Demo-Prototype</a>
+                    <a href="#">KI-Preview</a>
+                    <a href="#">Frontend only</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

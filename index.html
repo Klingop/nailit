@@ -18,9 +18,10 @@
             <div class="container nav-container">
                 <a href="#home" class="logo">nail<span>it</span></a>
                 <ul class="nav-links" id="navLinks">
-                    <li><a href="#services">Kategorien</a></li>
-                    <li><a href="#how-it-works">So funktioniert's</a></li>
-                    <li><a href="#for-contractors">Für Betriebe</a></li>
+                    <li><a href="#services"><i class="fas fa-th-large"></i> Kategorien</a></li>
+                    <li><a href="#how-it-works"><i class="fas fa-circle-info"></i> So funktioniert's</a></li>
+                    <li><a href="#for-contractors"><i class="fas fa-hard-hat"></i> Für Betriebe</a></li>
+                    <li><a href="#support"><i class="fas fa-headset"></i> Support</a></li>
                 </ul>
                 <div class="nav-auth">
                     <a href="#accounts" class="nav-login" id="navLoginButton" data-auth-view="login">Anmelden</a>
@@ -32,6 +33,9 @@
                         </div>
                         <button type="button" class="nav-logout" id="logoutButton">Logout</button>
                     </div>
+                    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Dark Mode umschalten">
+                        <i class="fas fa-moon" id="themeIcon"></i>
+                    </button>
                 </div>
                 <div class="hamburger" id="hamburger" aria-label="Navigation umschalten" aria-expanded="false" role="button" tabindex="0">
                     <span></span>
@@ -53,26 +57,40 @@
                 <!-- SEARCH BAR -->
                 <div class="hero-search-bar" id="heroSearchBar">
                     <form class="search-bar-form" id="heroServiceSearch">
-                        <input type="file" id="heroPhotoInput" name="heroPhotoInput" class="hero-photo-input" accept="image/*" capture="environment">
+                        <!-- Hidden file inputs -->
+                        <input type="file" id="heroPhotoInput" name="heroPhotoInput" class="hero-photo-input" accept="image/*">
+                        <input type="file" id="heroCameraInput" class="hero-photo-input" accept="image/*" capture="environment">
+
                         <div class="search-bar-main">
                             <div class="search-field service-field">
                                 <i class="fas fa-search"></i>
                                 <input type="text" id="heroServiceInput" name="heroServiceInput" placeholder="Welche Leistung brauchen Sie? z.B. Elektriker, Maler, Sanitär…">
                             </div>
                             <div class="search-divider"></div>
-                            <label class="search-scanner-btn" for="heroPhotoInput" id="heroPhotoTrigger" aria-label="Foto hochladen">
-                                <i class="fas fa-camera"></i>
-                                <span>Foto</span>
-                            </label>
+                            <div class="photo-options-wrapper">
+                                <button type="button" class="search-scanner-btn" id="photoOptionsToggle">
+                                    <i class="fas fa-camera"></i>
+                                    <span>Foto</span>
+                                    <i class="fas fa-chevron-down photo-chevron"></i>
+                                </button>
+                                <div class="photo-dropdown is-hidden" id="photoDropdown">
+                                    <button type="button" class="photo-option" id="takePhotoBtn">
+                                        <i class="fas fa-camera"></i> Foto aufnehmen
+                                    </button>
+                                    <button type="button" class="photo-option" id="choosePhotoBtn">
+                                        <i class="fas fa-images"></i> Aus Galerie wählen
+                                    </button>
+                                </div>
+                            </div>
                             <button type="submit" class="btn btn-primary search-submit-btn"><i class="fas fa-arrow-right"></i></button>
                         </div>
                     </form>
 
-                    <!-- AI Scanner Preview (nach Upload) -->
+                    <!-- Photo Preview -->
                     <div class="ai-scanner-preview is-hidden" id="aiScannerPreview">
                         <img id="aiPreviewImg" alt="Vorschau">
                         <button type="button" class="scanner-remove-btn" id="aiRemovePhoto"><i class="fas fa-xmark"></i></button>
-                        <span class="preview-badge"><i class="fas fa-search"></i> Nailit analysiert…</span>
+                        <span class="preview-badge"><i class="fas fa-check"></i> Foto bereit</span>
                     </div>
                 </div>
 
@@ -88,20 +106,20 @@
         <!-- 3. POPULAR SERVICES -->
         <section class="services-section" id="services">
             <div class="container">
-                <div class="section-header">
+                <div class="section-header reveal">
                     <p class="section-label">Unsere Kategorien</p>
                     <h2>Für jedes Handwerk den passenden Betrieb</h2>
                     <p>Egal ob Sanitär, Elektro oder Dach – bei Nailit findest du geprüfte Fachbetriebe für jedes Gewerk.</p>
                 </div>
                 <div class="services-grid">
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-bolt"></i></div><h3>Elektriker</h3><p>Steckdosen, Leitungen, Sicherungskasten</p></a>
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-faucet-drip"></i></div><h3>Sanitär</h3><p>Rohre, Wasserhähne, Heizung</p></a>
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-paint-roller"></i></div><h3>Maler</h3><p>Streichen, Tapezieren, Fassade</p></a>
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-house-chimney"></i></div><h3>Dachdecker</h3><p>Reparatur, Neueindeckung, Dachrinne</p></a>
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-broom"></i></div><h3>Reinigung</h3><p>Gebäudereinigung, Grundreinigung</p></a>
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-leaf"></i></div><h3>Gartenbau</h3><p>Rasenpflege, Baumschnitt, Gestaltung</p></a>
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-truck-moving"></i></div><h3>Umzüge</h3><p>Transport, Ein-/Auspacken, Montage</p></a>
-                    <a href="#" class="service-card"><div class="service-icon"><i class="fas fa-temperature-arrow-up"></i></div><h3>Heizung / Klima</h3><p>Wartung, Installation, Reparatur</p></a>
+                    <a href="#" class="service-card reveal delay-1"><div class="service-icon"><i class="fas fa-bolt"></i></div><h3>Elektriker</h3><p>Steckdosen, Leitungen, Sicherungskasten</p></a>
+                    <a href="#" class="service-card reveal delay-2"><div class="service-icon"><i class="fas fa-faucet-drip"></i></div><h3>Sanitär</h3><p>Rohre, Wasserhähne, Heizung</p></a>
+                    <a href="#" class="service-card reveal delay-3"><div class="service-icon"><i class="fas fa-paint-roller"></i></div><h3>Maler</h3><p>Streichen, Tapezieren, Fassade</p></a>
+                    <a href="#" class="service-card reveal delay-4"><div class="service-icon"><i class="fas fa-house-chimney"></i></div><h3>Dachdecker</h3><p>Reparatur, Neueindeckung, Dachrinne</p></a>
+                    <a href="#" class="service-card reveal delay-5"><div class="service-icon"><i class="fas fa-broom"></i></div><h3>Reinigung</h3><p>Gebäudereinigung, Grundreinigung</p></a>
+                    <a href="#" class="service-card reveal delay-6"><div class="service-icon"><i class="fas fa-leaf"></i></div><h3>Gartenbau</h3><p>Rasenpflege, Baumschnitt, Gestaltung</p></a>
+                    <a href="#" class="service-card reveal delay-7"><div class="service-icon"><i class="fas fa-truck-moving"></i></div><h3>Umzüge</h3><p>Transport, Ein-/Auspacken, Montage</p></a>
+                    <a href="#" class="service-card reveal delay-8"><div class="service-icon"><i class="fas fa-temperature-arrow-up"></i></div><h3>Heizung / Klima</h3><p>Wartung, Installation, Reparatur</p></a>
                 </div>
             </div>
         </section>
@@ -109,26 +127,26 @@
         <!-- 4. HOW IT WORKS -->
         <section class="how-it-works" id="how-it-works">
             <div class="container">
-                <div class="section-header">
+                <div class="section-header reveal">
                     <p class="section-label">So funktioniert's</p>
                     <h2>In 3 Schritten zum richtigen Handwerker</h2>
                 </div>
                 <div class="steps-grid">
-                    <div class="step-card">
+                    <div class="step-card reveal delay-1">
                         <div class="step-number">1</div>
                         <div class="step-icon"><i class="fas fa-pen-to-square"></i></div>
                         <h3>Projekt beschreiben</h3>
                         <p>Beschreibe dein Problem oder lade ein Foto hoch. Nailit erkennt automatisch, welches Gewerk gebraucht wird.</p>
                     </div>
                     <div class="step-connector"><i class="fas fa-arrow-right"></i></div>
-                    <div class="step-card">
+                    <div class="step-card reveal delay-2">
                         <div class="step-number">2</div>
                         <div class="step-icon"><i class="fas fa-code-compare"></i></div>
                         <h3>Betriebe vergleichen</h3>
                         <p>Erhalte passende Vorschläge von geprüften lokalen Betrieben – mit Bewertungen, Preisen und Verfügbarkeit.</p>
                     </div>
                     <div class="step-connector"><i class="fas fa-arrow-right"></i></div>
-                    <div class="step-card">
+                    <div class="step-card reveal delay-3">
                         <div class="step-number">3</div>
                         <div class="step-icon"><i class="fas fa-handshake"></i></div>
                         <h3>Besten Betrieb beauftragen</h3>
@@ -141,13 +159,13 @@
         <!-- 5. FEATURED CONTRACTORS -->
         <section class="featured-contractors" id="contractors">
             <div class="container">
-                <div class="section-header">
+                <div class="section-header reveal">
                     <p class="section-label">Top-bewertete Betriebe</p>
                     <h2>Empfohlene Handwerker in deiner Nähe</h2>
                     <p>Geprüfte Betriebe mit den besten Bewertungen unserer Kunden.</p>
                 </div>
                 <div class="contractors-grid">
-                    <article class="contractor-card">
+                    <article class="contractor-card reveal delay-1">
                         <div class="contractor-header">
                             <div class="contractor-avatar"><i class="fas fa-building"></i></div>
                             <div>
@@ -159,7 +177,7 @@
                         <div class="contractor-meta"><span><i class="fas fa-map-marker-alt"></i> Berlin</span><span><i class="fas fa-wrench"></i> Sanitär</span></div>
                         <a href="#" class="btn btn-secondary full-width">Profil ansehen</a>
                     </article>
-                    <article class="contractor-card">
+                    <article class="contractor-card reveal delay-2">
                         <div class="contractor-header">
                             <div class="contractor-avatar"><i class="fas fa-building"></i></div>
                             <div>
@@ -171,7 +189,7 @@
                         <div class="contractor-meta"><span><i class="fas fa-map-marker-alt"></i> Hamburg</span><span><i class="fas fa-bolt"></i> Elektro</span></div>
                         <a href="#" class="btn btn-secondary full-width">Profil ansehen</a>
                     </article>
-                    <article class="contractor-card">
+                    <article class="contractor-card reveal delay-3">
                         <div class="contractor-header">
                             <div class="contractor-avatar"><i class="fas fa-building"></i></div>
                             <div>
@@ -190,22 +208,22 @@
         <!-- 6. CUSTOMER REVIEWS -->
         <section class="reviews-section" id="reviews">
             <div class="container">
-                <div class="section-header">
+                <div class="section-header reveal">
                     <p class="section-label">Kundenstimmen</p>
                     <h2>Das sagen unsere Kunden</h2>
                 </div>
                 <div class="reviews-grid">
-                    <article class="review-card">
+                    <article class="review-card reveal delay-1">
                         <div class="review-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
                         <p class="review-text">"Ich habe ein Foto vom Wasserschaden hochgeladen und innerhalb von 10 Minuten drei Angebote erhalten. Super schnell!"</p>
                         <div class="review-author"><strong>Anna M.</strong><span>Sanitär · Berlin</span></div>
                     </article>
-                    <article class="review-card">
+                    <article class="review-card reveal delay-2">
                         <div class="review-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i></div>
                         <p class="review-text">"Nailit hat sofort erkannt, dass es ein Elektroproblem war. Der Elektriker war am nächsten Tag da. Perfekt!"</p>
                         <div class="review-author"><strong>Thomas K.</strong><span>Elektro · Hamburg</span></div>
                     </article>
-                    <article class="review-card">
+                    <article class="review-card reveal delay-3">
                         <div class="review-stars"><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star"></i><i class="fas fa-star-half-stroke"></i></div>
                         <p class="review-text">"Endlich eine Plattform mit echten, geprüften Handwerkern. Keine Fake-Profile, echte Meisterbetriebe. Top!"</p>
                         <div class="review-author"><strong>Sarah L.</strong><span>Maler · München</span></div>
@@ -217,7 +235,7 @@
         <!-- 8. CALL TO ACTION -->
         <section class="cta-section" id="cta">
             <div class="container">
-                <div class="cta-card">
+                <div class="cta-card reveal">
                     <h2>Handwerker gesucht? Nailit hilft.</h2>
                     <p>Beschreibe dein Projekt und erhalte kostenlose Angebote von geprüften Betrieben in deiner Nähe.</p>
                     <div class="cta-buttons">
@@ -232,7 +250,7 @@
         <section class="for-contractors" id="for-contractors">
             <div class="container">
                 <div class="contractor-cta-grid">
-                    <div class="contractor-cta-content">
+                    <div class="contractor-cta-content reveal">
                         <p class="section-label">Für Handwerksbetriebe</p>
                         <h2>Werden Sie Teil von Nailit</h2>
                         <p>Erreichen Sie neue Kunden mit vorqualifizierten Aufträgen. Nailit liefert Ihnen passende Projekte direkt aufs Dashboard.</p>
@@ -245,7 +263,7 @@
                         </ul>
                         <a href="#accounts" class="btn btn-primary btn-lg" data-auth-view="register"><i class="fas fa-user-plus"></i> Als Betrieb registrieren</a>
                     </div>
-                    <div class="contractor-cta-stats">
+                    <div class="contractor-cta-stats reveal delay-2">
                         <div class="stat-card"><strong>2.500+</strong><span>Registrierte Betriebe</span></div>
                         <div class="stat-card"><strong>94%</strong><span>Matching-Genauigkeit</span></div>
                         <div class="stat-card"><strong>12 Min</strong><span>Ø Antwortzeit</span></div>
@@ -256,8 +274,8 @@
         </section>
 
         <!-- 10. FOOTER -->
-        <footer class="footer">
-            <div class="container footer-grid">
+        <footer class="footer" id="support">
+            <div class="container footer-grid reveal">
                 <div class="footer-brand">
                     <a href="#home" class="logo">nail<span>it</span></a>
                     <p>Deine Plattform für Handwerkersuche in Deutschland. Problem beschreiben, Betrieb finden, loslegen.</p>
@@ -273,7 +291,6 @@
                     <a href="#home">Startseite</a>
                     <a href="#services">Kategorien</a>
                     <a href="#how-it-works">So funktioniert's</a>
-                    <a href="#contractors">Handwerker</a>
                     <a href="#for-contractors">Für Betriebe</a>
                 </div>
                 <div class="footer-column">
@@ -285,19 +302,12 @@
                     <a href="#">Reinigung</a>
                 </div>
                 <div class="footer-column">
-                    <h3>Städte</h3>
-                    <a href="#">Berlin</a>
-                    <a href="#">Hamburg</a>
-                    <a href="#">München</a>
-                    <a href="#">Köln</a>
-                    <a href="#">Frankfurt</a>
-                </div>
-                <div class="footer-column">
-                    <h3>Rechtliches</h3>
-                    <a href="#">Datenschutz</a>
-                    <a href="#">AGB</a>
-                    <a href="#">Impressum</a>
-                    <a href="#">Kontakt</a>
+                    <h3>Support</h3>
+                    <a href="mailto:support@nailit.de"><i class="fas fa-envelope"></i> support@nailit.de</a>
+                    <a href="#"><i class="fas fa-question-circle"></i> Hilfe-Center</a>
+                    <a href="#"><i class="fas fa-bug"></i> Problem melden</a>
+                    <a href="#"><i class="fas fa-shield-halved"></i> Datenschutz</a>
+                    <a href="#"><i class="fas fa-file-contract"></i> Impressum</a>
                 </div>
             </div>
             <div class="container footer-bottom">
@@ -308,39 +318,59 @@
         <!-- MODALS (hidden) -->
         <section class="ai-diagnose ai-modal is-hidden" id="ai-diagnose" role="dialog" aria-modal="true" aria-labelledby="aiDiagnoseTitle">
             <div class="ai-modal-backdrop" id="aiDiagnoseBackdrop"></div>
-            <div class="container ai-modal-dialog section-grid">
+            <div class="container ai-modal-dialog">
                 <button type="button" class="ai-modal-close" id="aiDiagnoseClose" aria-label="Schliessen"><i class="fas fa-xmark"></i></button>
-                <div class="section-copy reveal">
-                    <p class="section-label">Schadenserkennung</p>
-                    <h2 id="aiDiagnoseTitle">Foto hochladen – Nailit erkennt das Problem</h2>
-                    <div class="feature-stack">
-                        <div class="feature-row"><i class="fas fa-eye"></i><span>Bild-Upload für Schadenerkennung</span></div>
-                        <div class="feature-row"><i class="fas fa-location-dot"></i><span>Standort für lokale Betriebe</span></div>
-                        <div class="feature-row"><i class="fas fa-screwdriver-wrench"></i><span>Automatische Gewerk-Zuordnung</span></div>
-                    </div>
-                </div>
-                <div class="ai-shell reveal">
+
+                <div class="scanner-modal-clean">
+                    <h2 id="aiDiagnoseTitle"><i class="fas fa-camera"></i> Nailit Scanner</h2>
+
                     <form id="aiIssueForm" class="ai-form">
-                        <div class="upload-box">
-                            <label for="issueMedia" class="upload-label"><i class="fas fa-camera"></i><span>Foto hochladen</span><small id="uploadHint">PNG, JPG oder MP4</small></label>
+                        <!-- FOTO UPLOAD -->
+                        <div class="scanner-upload-area" id="scannerUploadArea">
                             <input type="file" id="issueMedia" name="issueMedia" accept="image/*,video/*">
+                            <label for="issueMedia" class="scanner-upload-label">
+                                <div class="scanner-upload-icon"><i class="fas fa-cloud-arrow-up"></i></div>
+                                <p>Foto hochladen oder aufnehmen</p>
+                                <small>JPG, PNG – max. 10 MB</small>
+                            </label>
                         </div>
-                        <input type="hidden" id="issueDescription" name="issueDescription">
-                        <div class="merged-description-panel"><span class="merged-description-label">Beschreibung</span><p id="mergedDescriptionPreview">Beschreibe dein Problem oben.</p></div>
-                        <div class="form-row three-columns">
-                            <div class="form-group"><label for="issueLocation">PLZ / Ort</label><input type="text" id="issueLocation" name="issueLocation" required placeholder="10115 Berlin"></div>
-                            <div class="form-group"><label for="issueRegion">Region</label><select id="issueRegion" name="issueRegion" required><option value="">Wählen</option><option value="berlin">Berlin</option><option value="hamburg">Hamburg</option><option value="muenchen">München</option><option value="koeln">Köln</option><option value="frankfurt">Frankfurt</option></select></div>
-                            <div class="form-group"><label for="urgency">Dringlichkeit</label><select id="urgency" name="urgency" required><option value="">Wählen</option><option value="notfall">Notfall</option><option value="hoch">Hoch</option><option value="mittel">Mittel</option><option value="niedrig">Niedrig</option></select></div>
+
+                        <!-- Foto Vorschau -->
+                        <div class="scanner-photo-preview is-hidden" id="scannerPhotoPreview">
+                            <img id="scannerPreviewImg" alt="Vorschau">
+                            <button type="button" class="scanner-preview-remove" id="scannerRemovePhoto"><i class="fas fa-trash"></i></button>
                         </div>
-                        <button type="submit" class="btn btn-primary full-width">Analyse starten</button>
+
+                        <!-- Optionale Beschreibung (erscheint nach Foto-Upload) -->
+                        <div class="scanner-desc-row is-hidden" id="scannerDescRow">
+                            <textarea id="issueDescription" name="issueDescription" rows="2" placeholder="Was ist auf dem Bild zu sehen? (optional)"></textarea>
+                        </div>
+
+                        <input type="hidden" id="issueLocation" name="issueLocation" value="">
+                        <input type="hidden" id="issueRegion" name="issueRegion" value="">
+                        <input type="hidden" id="urgency" name="urgency" value="mittel">
+
+                        <button type="submit" class="btn btn-primary full-width scanner-submit-btn is-hidden" id="scannerSubmitBtn"><i class="fas fa-bolt"></i> Analyse starten</button>
                     </form>
-                    <div class="analysis-panel" id="analysisPanel">
-                        <div class="analysis-head"><p class="section-label">Ergebnis</p><h3 id="analysisTitle">Noch keine Analyse</h3><p id="analysisSummary">Nach Upload erscheint hier das Ergebnis.</p></div>
-                        <div class="analysis-metrics"><div><span>Gewerk</span><strong id="analysisTrade">-</strong></div><div><span>Priorität</span><strong id="analysisPriority">-</strong></div><div><span>Sicherheit</span><strong id="analysisConfidence">-</strong></div></div>
-                        <div class="analysis-tags" id="analysisTags"></div>
-                        <div class="match-list" id="matchList"><article class="match-card placeholder-card"><strong>Betriebe erscheinen hier</strong><p>Nach der Analyse werden passende Betriebe vorgeschlagen.</p></article></div>
+
+                    <!-- Ergebnis (erscheint nach KI-Analyse) -->
+                    <div class="scanner-result is-hidden" id="scannerResult">
+                        <div class="scanner-result-header">
+                            <i class="fas fa-check-circle"></i>
+                            <div>
+                                <h3 id="scannerResultTitle">Analyse läuft…</h3>
+                                <p id="scannerResultSummary"></p>
+                            </div>
+                        </div>
+                        <div class="scanner-result-details">
+                            <div class="scanner-result-tag"><span>Gewerk</span><strong id="scannerResultTrade">–</strong></div>
+                            <div class="scanner-result-tag"><span>Priorität</span><strong id="scannerResultPriority">–</strong></div>
+                            <div class="scanner-result-tag"><span>Sicherheit</span><strong id="scannerResultConfidence">–</strong></div>
+                        </div>
+                        <button type="button" class="btn btn-primary full-width scanner-result-cta" id="scannerResultCta"><i class="fas fa-arrow-right"></i> Betriebe anzeigen</button>
                     </div>
                 </div>
+
             </div>
         </section>
 
@@ -446,32 +476,231 @@
     </div>
     <script src="script.js"></script>
     <script>
-    /* ── Photo preview in search bar ── */
+    /* ── Photo dropdown + preview ── */
     (function() {
         const photoInput = document.getElementById('heroPhotoInput');
+        const cameraInput = document.getElementById('heroCameraInput');
         const preview = document.getElementById('aiScannerPreview');
         const previewImg = document.getElementById('aiPreviewImg');
         const removeBtn = document.getElementById('aiRemovePhoto');
+        const toggle = document.getElementById('photoOptionsToggle');
+        const dropdown = document.getElementById('photoDropdown');
+        const heroSearchBar = document.getElementById('heroSearchBar');
+        const takeBtn = document.getElementById('takePhotoBtn');
+        const chooseBtn = document.getElementById('choosePhotoBtn');
 
-        if (photoInput && preview) {
-            photoInput.addEventListener('change', function() {
+        // Toggle dropdown
+        if (toggle && dropdown) {
+            toggle.addEventListener('click', function(e) {
+                e.stopPropagation();
+                dropdown.classList.toggle('is-hidden');
+                if (heroSearchBar) heroSearchBar.classList.toggle('dropdown-open', !dropdown.classList.contains('is-hidden'));
+            });
+            document.addEventListener('click', function() {
+                dropdown.classList.add('is-hidden');
+                if (heroSearchBar) heroSearchBar.classList.remove('dropdown-open');
+            });
+            dropdown.addEventListener('click', function(e) {
+                e.stopPropagation();
+            });
+        }
+
+        // Take photo (camera)
+        if (takeBtn && cameraInput) {
+            takeBtn.addEventListener('click', function() {
+                cameraInput.click();
+                dropdown.classList.add('is-hidden');
+                if (heroSearchBar) heroSearchBar.classList.remove('dropdown-open');
+            });
+        }
+
+        // Choose from library
+        if (chooseBtn && photoInput) {
+            chooseBtn.addEventListener('click', function() {
+                photoInput.click();
+                dropdown.classList.add('is-hidden');
+                if (heroSearchBar) heroSearchBar.classList.remove('dropdown-open');
+            });
+        }
+
+        // Show preview for either input
+        function handleFile(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    previewImg.src = e.target.result;
+                    preview.classList.remove('is-hidden');
+                    // Copy file to heroPhotoInput so script.js can read it
+                    if (input !== photoInput) {
+                        const dt = new DataTransfer();
+                        dt.items.add(input.files[0]);
+                        photoInput.files = dt.files;
+                    }
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        if (photoInput) photoInput.addEventListener('change', function() { handleFile(this); });
+        if (cameraInput) cameraInput.addEventListener('change', function() { handleFile(this); });
+
+        // Remove photo
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function() {
+                preview.classList.add('is-hidden');
+                previewImg.src = '';
+                if (photoInput) photoInput.value = '';
+                if (cameraInput) cameraInput.value = '';
+            });
+        }
+    })();
+
+    /* ── Scanner Modal: photo preview + KI analyse ── */
+    (function() {
+        const issueMedia = document.getElementById('issueMedia');
+        const uploadArea = document.getElementById('scannerUploadArea');
+        const photoPreview = document.getElementById('scannerPhotoPreview');
+        const previewImg = document.getElementById('scannerPreviewImg');
+        const removeBtn = document.getElementById('scannerRemovePhoto');
+        const descRow = document.getElementById('scannerDescRow');
+        const submitBtn = document.getElementById('scannerSubmitBtn');
+        const form = document.getElementById('aiIssueForm');
+        const resultPanel = document.getElementById('scannerResult');
+        const resultTitle = document.getElementById('scannerResultTitle');
+        const resultSummary = document.getElementById('scannerResultSummary');
+        const resultTrade = document.getElementById('scannerResultTrade');
+        const resultPriority = document.getElementById('scannerResultPriority');
+        const resultConfidence = document.getElementById('scannerResultConfidence');
+
+        // Photo selected → show preview + description + submit
+        if (issueMedia && photoPreview) {
+            issueMedia.addEventListener('change', function() {
                 if (this.files && this.files[0]) {
-                    const reader = new FileReader();
+                    var reader = new FileReader();
                     reader.onload = function(e) {
                         previewImg.src = e.target.result;
-                        preview.classList.remove('is-hidden');
+                        photoPreview.classList.remove('is-hidden');
+                        uploadArea.style.display = 'none';
+                        if (descRow) descRow.classList.remove('is-hidden');
+                        if (submitBtn) submitBtn.classList.remove('is-hidden');
+                        if (resultPanel) resultPanel.classList.add('is-hidden');
                     };
                     reader.readAsDataURL(this.files[0]);
                 }
             });
+        }
 
-            if (removeBtn) {
-                removeBtn.addEventListener('click', function() {
-                    preview.classList.add('is-hidden');
-                    previewImg.src = '';
-                    photoInput.value = '';
-                });
-            }
+        // Remove photo → reset
+        if (removeBtn) {
+            removeBtn.addEventListener('click', function() {
+                photoPreview.classList.add('is-hidden');
+                uploadArea.style.display = '';
+                previewImg.src = '';
+                issueMedia.value = '';
+                if (descRow) descRow.classList.add('is-hidden');
+                if (submitBtn) submitBtn.classList.add('is-hidden');
+                if (resultPanel) resultPanel.classList.add('is-hidden');
+            });
+        }
+
+        // Convert file to base64 data URL
+        function fileToBase64(file) {
+            return new Promise(function(resolve, reject) {
+                var reader = new FileReader();
+                reader.onload = function() { resolve(reader.result); };
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+        }
+
+        // Form submit → call /api/analyze
+        if (form) {
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+
+                var mediaFile = issueMedia ? issueMedia.files[0] : null;
+                if (!mediaFile) return;
+
+                var description = (document.getElementById('issueDescription') || {}).value || '';
+                var urgency = (document.getElementById('urgency') || {}).value || 'mittel';
+
+                // Loading state
+                submitBtn.textContent = 'Analysiert…';
+                submitBtn.classList.add('is-loading');
+
+                try {
+                    var imageDataUrl = await fileToBase64(mediaFile);
+
+                    var payload = {
+                        description: description || 'Bitte analysiere dieses Foto.',
+                        location: '',
+                        propertyType: '',
+                        urgency: urgency,
+                        imageDataUrl: imageDataUrl
+                    };
+
+                    var response = await fetch('/api/analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        var errData = await response.json().catch(function() { return {}; });
+                        throw new Error(errData.error || 'Analyse fehlgeschlagen');
+                    }
+
+                    var result = await response.json();
+
+                    // Show result
+                    resultTitle.textContent = result.title || 'Analyse abgeschlossen';
+                    resultSummary.textContent = result.summary || '';
+                    resultTrade.textContent = result.trade || '–';
+                    resultPriority.textContent = result.priority || '–';
+                    resultConfidence.textContent = result.confidence || '–';
+                    resultPanel.classList.remove('is-hidden');
+
+                } catch (err) {
+                    resultTitle.textContent = 'Fehler bei der Analyse';
+                    resultSummary.textContent = err.message;
+                    resultTrade.textContent = '–';
+                    resultPriority.textContent = '–';
+                    resultConfidence.textContent = '–';
+                    resultPanel.classList.remove('is-hidden');
+                } finally {
+                    submitBtn.innerHTML = '<i class="fas fa-bolt"></i> Analyse starten';
+                    submitBtn.classList.remove('is-loading');
+                }
+            });
+        }
+    })();
+
+    /* ── Dark Mode Toggle ── */
+    (function() {
+        const toggle = document.getElementById('themeToggle');
+        const icon = document.getElementById('themeIcon');
+        const html = document.documentElement;
+
+        // Load saved theme
+        var saved = localStorage.getItem('nailit-theme');
+        if (saved === 'dark') {
+            html.setAttribute('data-theme', 'dark');
+            icon.classList.replace('fa-moon', 'fa-sun');
+        }
+
+        if (toggle) {
+            toggle.addEventListener('click', function() {
+                var isDark = html.getAttribute('data-theme') === 'dark';
+                if (isDark) {
+                    html.removeAttribute('data-theme');
+                    icon.classList.replace('fa-sun', 'fa-moon');
+                    localStorage.setItem('nailit-theme', 'light');
+                } else {
+                    html.setAttribute('data-theme', 'dark');
+                    icon.classList.replace('fa-moon', 'fa-sun');
+                    localStorage.setItem('nailit-theme', 'dark');
+                }
+            });
         }
     })();
     </script>
