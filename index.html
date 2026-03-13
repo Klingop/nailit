@@ -57,11 +57,11 @@
                 <!-- SEARCH BAR -->
                 <div class="hero-search-row">
                     <div class="hero-search-bar" id="heroSearchBar">
-                        <form class="search-bar-form" id="heroServiceSearch">
+                        <form class="search-bar-form" id="heroServiceSearch" action="contractors.html" method="get">
                             <div class="search-bar-main">
                                 <div class="search-field service-field">
                                     <i class="fas fa-search"></i>
-                                    <input type="text" id="heroServiceInput" name="heroServiceInput" placeholder="Welche Leistung brauchen Sie? z.B. Elektriker, Maler, Sanitär…">
+                                    <input type="text" id="heroServiceInput" name="q" placeholder="Welche Leistung brauchen Sie? z.B. Elektriker, Maler, Sanitär…">
                                 </div>
                                 <button type="submit" class="btn btn-primary search-submit-btn"><i class="fas fa-arrow-right"></i></button>
                             </div>
@@ -560,6 +560,17 @@
 
                         <div class="payment-provider-hint" id="paymentProviderHint"></div>
                         <div class="payment-transfer-details is-hidden" id="paymentTransferDetails"></div>
+                        <div class="payment-demo-panel is-hidden" id="paymentDemoPanel">
+                            <div class="payment-demo-card">
+                                <p class="payment-demo-label">Lokaler Checkout</p>
+                                <h3 id="paymentDemoTitle">Zahlung direkt in Nailit testen</h3>
+                                <p id="paymentDemoText">Diese Zahlungsart wird in der lokalen Vorschau direkt in Nailit bestaetigt.</p>
+                                <div class="payment-demo-actions">
+                                    <button type="button" class="btn btn-secondary" id="paymentDemoCancel">Abbrechen</button>
+                                    <button type="button" class="btn btn-primary" id="paymentDemoConfirm"><i class="fas fa-check"></i> Demo-Zahlung abschliessen</button>
+                                </div>
+                            </div>
+                        </div>
                         <p class="payment-note">Demo-Hinweis: Die Auswahl wird lokal gespeichert und markiert das Angebot im Chat als bezahlt.</p>
                         <div class="inline-error payment-status-line" id="paymentStatus"></div>
 

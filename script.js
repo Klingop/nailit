@@ -17,7 +17,8 @@ const contractorCityFilter = document.getElementById('contractorCityFilter');
 const contractorResetButton = document.getElementById('contractorResetButton');
 const contractorResultCount = document.getElementById('contractorResultCount');
 const contractorEmptyState = document.getElementById('contractorEmptyState');
-const contractorCards = Array.from(document.querySelectorAll('.contractor-card'));
+const contractorsGrid = document.getElementById('contractorsGrid');
+let contractorCards = Array.from(document.querySelectorAll('.contractor-card'));
 const navAuthLinks = document.querySelectorAll('.nav-auth [data-auth-view]');
 const authTabs = document.querySelectorAll('.auth-tab');
 const registerForm = document.getElementById('registerForm');
@@ -52,6 +53,11 @@ const paymentStatus = document.getElementById('paymentStatus');
 const paymentCancel = document.getElementById('paymentCancel');
 const paymentProviderHint = document.getElementById('paymentProviderHint');
 const paymentTransferDetails = document.getElementById('paymentTransferDetails');
+const paymentDemoPanel = document.getElementById('paymentDemoPanel');
+const paymentDemoTitle = document.getElementById('paymentDemoTitle');
+const paymentDemoText = document.getElementById('paymentDemoText');
+const paymentDemoConfirm = document.getElementById('paymentDemoConfirm');
+const paymentDemoCancel = document.getElementById('paymentDemoCancel');
 const directoryBackLink = document.getElementById('directoryBackLink');
 const navUserStatus = document.getElementById('navUserStatus');
 const navUserName = document.getElementById('navUserName');
@@ -90,6 +96,14 @@ const SEARCH_ALIASES = {
     klima: ['heizung', 'klimaanlage', 'lueftung']
 };
 
+const TRADE_LABELS = {
+    sanitaer: 'Sanitaer',
+    dach: 'Dach',
+    elektro: 'Elektro',
+    maler: 'Maler',
+    allround: 'Allround'
+};
+
 const STORAGE_KEYS = {
     accounts: 'nailit.accounts',
     session: 'nailit.session',
@@ -123,6 +137,7 @@ const PAYMENT_METHODS = {
 const IMMEDIATE_PAYMENT_METHODS = new Set(['stripe', 'paypal', 'applepay', 'klarna']);
 const TRACKED_SETTLEMENT_METHODS = new Set(['invoice', 'transfer']);
 const EXTERNAL_CHECKOUT_METHODS = new Set(['stripe', 'paypal']);
+const LOCAL_DEMO_CHECKOUT_METHODS = new Set(['stripe', 'paypal', 'applepay', 'klarna']);
 
 const businesses = {
     sanitaer: [
@@ -561,6 +576,76 @@ const getProviderCheckoutUrl = (paymentMethod) => {
     return '';
 };
 
+const hasLivePaymentSupport = (paymentMethod) => {
+    if (paymentMethod === 'stripe') {
+        return Boolean(paymentConfig.stripeEnabled || paymentConfig.stripeCheckoutUrl);
+    }
+
+    if (paymentMethod === 'paypal') {
+        return Boolean(paymentConfig.paypalEnabled || paymentConfig.paypalCheckoutUrl);
+    }
+
+    return false;
+};
+
+const shouldUseLocalDemoCheckout = (paymentMethod, providerUrl = '') => {
+    if (!LOCAL_DEMO_CHECKOUT_METHODS.has(paymentMethod)) {
+        return false;
+    }
+
+    return !providerUrl && !hasLivePaymentSupport(paymentMethod);
+};
+
+const getLocalDemoCheckoutCopy = (paymentMethod) => {
+    if (paymentMethod === 'stripe') {
+        return {
+            title: 'Stripe lokal testen',
+            text: 'Stripe ist in dieser Vorschau nicht live verbunden. Du kannst die Zahlung hier lokal bestaetigen und den kompletten Chat- und Status-Flow testen.'
+        };
+    }
+
+    if (paymentMethod === 'paypal') {
+        return {
+            title: 'PayPal lokal testen',
+            text: 'PayPal ist in dieser Vorschau nicht live verbunden. Mit der Demo-Bestaetigung pruefst du trotzdem Rueckmeldung, Statuswechsel und Chat-Aktualisierung.'
+        };
+    }
+
+    if (paymentMethod === 'applepay') {
+        return {
+            title: 'Apple Pay lokal testen',
+            text: 'Apple Pay ist aktuell als lokaler Demo-Flow hinterlegt. Nach der Bestaetigung wird das Angebot in Nailit direkt als bezahlt markiert.'
+        };
+    }
+
+    return {
+        title: 'Klarna lokal testen',
+        text: 'Klarna ist aktuell als lokaler Demo-Flow hinterlegt. So kannst du den Bezahlstatus in Nailit pruefen, ohne einen externen Provider anzubinden.'
+    };
+};
+
+const updatePaymentDemoState = () => {
+    if (!paymentForm || !paymentDemoPanel) {
+        return;
+    }
+
+    const selectedMethod = String(new FormData(paymentForm).get('paymentMethod') || 'stripe');
+    const providerUrl = getProviderCheckoutUrl(selectedMethod);
+    const showDemoPanel = shouldUseLocalDemoCheckout(selectedMethod, providerUrl);
+
+    paymentDemoPanel.classList.toggle('is-hidden', !showDemoPanel);
+
+    if (showDemoPanel) {
+        const copy = getLocalDemoCheckoutCopy(selectedMethod);
+        if (paymentDemoTitle) {
+            paymentDemoTitle.textContent = copy.title;
+        }
+        if (paymentDemoText) {
+            paymentDemoText.textContent = copy.text;
+        }
+    }
+};
+
 const createStripeCheckoutSession = async ({ offer, business }) => {
     const scope = getCurrentChatScope();
     const response = await fetch('/api/payments/stripe/checkout-session', {
@@ -651,7 +736,17 @@ const getProviderHintText = (selectedMethod) => {
     if (selectedMethod === 'paypal') {
         return paymentConfig.paypalEnabled
             ? 'PayPal ist live konfiguriert und wird beim Bestaetigen in einem neuen Tab geoeffnet.'
-            : 'PayPal ist vorbereitet. Fuer den Live-Checkout muss nur noch PAYPAL_CHECKOUT_URL in der .env hinterlegt werden.';
+            : paymentConfig.paypalCheckoutUrl
+                ? 'PayPal verwendet aktuell einen statischen Fallback-Link. Mit API-Credentials kann Nailit Bestellungen serverseitig erstellen und nach Rueckkehr automatisch bestaetigen.'
+                : 'PayPal ist vorbereitet. In der lokalen Vorschau kannst du den Flow direkt in Nailit testen.';
+    }
+
+    if (selectedMethod === 'applepay') {
+        return 'Apple Pay ist aktuell als lokaler Nailit-Checkout hinterlegt. Fuer einen echten Wallet-Flow braucht es spaeter eine Provider-Anbindung.';
+    }
+
+    if (selectedMethod === 'klarna') {
+        return 'Klarna ist aktuell als lokaler Nailit-Checkout hinterlegt. Fuer einen echten Klarna-Flow braucht es spaeter eine Provider-Anbindung.';
     }
 
     if (selectedMethod === 'invoice') {
@@ -771,6 +866,8 @@ const updatePaymentMethodDetails = () => {
             paymentTransferDetails.innerHTML = '';
         }
     }
+
+    updatePaymentDemoState();
 };
 
 const loadPaymentConfig = async () => {
@@ -806,8 +903,77 @@ const closePaymentModal = () => {
         paymentStatus.textContent = '';
     }
 
+    if (paymentDemoConfirm) {
+        paymentDemoConfirm.onclick = null;
+    }
+
+    if (paymentDemoCancel) {
+        paymentDemoCancel.onclick = null;
+    }
+
     activePaymentOfferId = null;
     syncModalBodyState();
+};
+
+const finalizePaymentFlow = ({ paymentMethod, existingOffer, providerUrl = '', externalReference = '', invoiceData = {}, usedDemoCheckout = false }) => {
+    if (!activeChatBusiness || !activePaymentOfferId) {
+        return;
+    }
+
+    const isImmediatePayment = IMMEDIATE_PAYMENT_METHODS.has(paymentMethod);
+    const isExternalCheckout = EXTERNAL_CHECKOUT_METHODS.has(paymentMethod);
+    const markPaidImmediately = usedDemoCheckout || !isExternalCheckout;
+
+    const updatedThread = getChatThread(activeChatBusiness.name).map((message) => {
+        if (message.type === 'offer' && message.offerId === activePaymentOfferId) {
+            return {
+                ...message,
+                status: isExternalCheckout && !markPaidImmediately ? 'checkout' : isImmediatePayment ? 'paid' : 'pending',
+                paymentMethod,
+                amountPaid: markPaidImmediately && isImmediatePayment ? Number(message.amount || 0) : getPaidAmount(message),
+                paidAt: markPaidImmediately && isImmediatePayment ? new Date().toISOString() : '',
+                providerRedirected: Boolean(providerUrl),
+                externalReference,
+                checkoutRequestedAt: isExternalCheckout && !markPaidImmediately ? new Date().toISOString() : '',
+                providerDemoCompletedAt: usedDemoCheckout ? new Date().toISOString() : message.providerDemoCompletedAt,
+                ...invoiceData
+            };
+        }
+
+        return message;
+    });
+
+    updatedThread.push({
+        sender: 'business',
+        author: activeChatBusiness.name,
+        text: isExternalCheckout && !markPaidImmediately
+            ? `${getPaymentMethodLabel(paymentMethod)} wurde geoeffnet. Nach deiner Rueckkehr aktualisiert Nailit den Chat automatisch.`
+            : paymentMethod === 'invoice'
+                ? `Danke. Wir haben dir die Rechnung ${invoiceData.invoiceNumber} direkt in den Chat gelegt. Du kannst sie sofort als PDF herunterladen.`
+                : paymentMethod === 'transfer'
+                    ? `Danke. Bitte ueberweise den Betrag mit der Referenz ${invoiceData.invoiceNumber}. Die Bankdaten und die PDF-Rechnung stehen jetzt im Chat bereit.`
+                    : usedDemoCheckout
+                        ? `Die Demo-Zahlung per ${getPaymentMethodLabel(paymentMethod)} wurde direkt in Nailit bestaetigt.`
+                        : `Danke. Die Zahlung per ${getPaymentMethodLabel(paymentMethod)} ist eingegangen. Wir bestaetigen den Einsatz jetzt direkt ueber Nailit.`,
+        timestamp: new Date().toISOString()
+    });
+
+    saveChatThread(activeChatBusiness.name, updatedThread);
+
+    if (contractorChatStatus) {
+        contractorChatStatus.textContent = isExternalCheckout && !markPaidImmediately
+            ? `${getPaymentMethodLabel(paymentMethod)} wurde geoeffnet. Nach deiner Rueckkehr wird der Status aktualisiert.`
+            : paymentMethod === 'invoice'
+                ? `Rechnung ${invoiceData.invoiceNumber} fuer ${activeChatBusiness.name} wurde erstellt.`
+                : paymentMethod === 'transfer'
+                    ? `Ueberweisungsdaten fuer ${activeChatBusiness.name} wurden bereitgestellt.`
+                    : usedDemoCheckout
+                        ? `${getPaymentMethodLabel(paymentMethod)} wurde lokal erfolgreich simuliert.`
+                        : `Zahlung fuer ${activeChatBusiness.name} wurde per ${getPaymentMethodLabel(paymentMethod)} bestaetigt.`;
+    }
+
+    closePaymentModal();
+    renderChatThread();
 };
 
 const openPaymentModal = (offerId) => {
@@ -833,6 +999,14 @@ const openPaymentModal = (offerId) => {
 
     if (paymentStatus) {
         paymentStatus.textContent = '';
+    }
+
+    if (paymentDemoConfirm) {
+        paymentDemoConfirm.onclick = null;
+    }
+
+    if (paymentDemoCancel) {
+        paymentDemoCancel.onclick = null;
     }
 
     const preferredMethod = offer.paymentMethod || 'stripe';
@@ -1735,17 +1909,101 @@ const getSearchTerms = (value) => {
 
 const FILTER_VALUE_MAP = {
     trade: {
-        sanitar: 'sanitär',
-        sanitaer: 'sanitär',
+        sanitar: 'sanitaer',
+        sanitaer: 'sanitaer',
         elektro: 'elektro',
-        dach: 'dach'
+        dach: 'dach',
+        maler: 'maler',
+        allround: 'allround'
     },
     city: {
         berlin: 'berlin',
         hamburg: 'hamburg',
-        munchen: 'münchen',
-        muenchen: 'münchen'
+        munchen: 'munchen',
+        muenchen: 'munchen'
     }
+};
+
+const getTradeLabel = (trade) => {
+    return TRADE_LABELS[normalizeSearchText(trade)] || String(trade || 'Allround');
+};
+
+const getDirectoryBusinesses = () => {
+    const seenNames = new Set();
+
+    return Object.entries(businesses).flatMap(([trade, items]) => {
+        return items.map((business) => ({
+            ...business,
+            trade
+        }));
+    }).filter((business) => {
+        if (seenNames.has(business.name)) {
+            return false;
+        }
+
+        seenNames.add(business.name);
+        return true;
+    });
+};
+
+const updateContractorFilterOptions = (directoryBusinesses) => {
+    if (contractorTradeFilter) {
+        const tradeOptions = Array.from(new Set(directoryBusinesses.map((business) => normalizeSearchText(business.trade))));
+        contractorTradeFilter.innerHTML = [
+            '<option value="">Alle Gewerke</option>',
+            ...tradeOptions.map((trade) => `<option value="${escapeHtml(trade)}">${escapeHtml(getTradeLabel(trade))}</option>`)
+        ].join('');
+    }
+
+    if (contractorCityFilter) {
+        const cityOptions = Array.from(new Set(directoryBusinesses.map((business) => normalizeSearchText(business.city))));
+        contractorCityFilter.innerHTML = [
+            '<option value="">Alle Staedte</option>',
+            ...cityOptions.map((city) => `<option value="${escapeHtml(city)}">${escapeHtml(String(city).charAt(0).toUpperCase() + String(city).slice(1))}</option>`)
+        ].join('');
+    }
+};
+
+const renderContractorDirectory = () => {
+    if (!contractorsGrid || !isContractorsPage) {
+        return;
+    }
+
+    const directoryBusinesses = getDirectoryBusinesses();
+    updateContractorFilterOptions(directoryBusinesses);
+
+    contractorsGrid.innerHTML = directoryBusinesses.map((business, index) => {
+        const businessName = escapeHtml(business.name);
+        const businessTrade = normalizeSearchText(business.trade);
+        const businessTradeLabel = escapeHtml(getTradeLabel(business.trade));
+        const businessCity = escapeHtml(business.city);
+        const businessCityValue = normalizeSearchText(business.city);
+        const businessTags = escapeHtml(`${business.trade} ${business.specialty} ${business.city} ${business.distance} ${business.availability}`);
+        const businessScore = escapeHtml(business.score || 'Top Match');
+        const delayClass = `delay-${(index % 4) + 1}`;
+
+        return `
+            <article class="contractor-card reveal ${delayClass}" data-name="${businessName}" data-trade="${escapeHtml(businessTrade)}" data-city="${escapeHtml(businessCityValue)}" data-tags="${businessTags}">
+                <div class="contractor-header">
+                    <div class="contractor-avatar"><i class="fas fa-building"></i></div>
+                    <div>
+                        <h3>${businessName}</h3>
+                        <div class="contractor-rating"><i class="fas fa-star"></i><span>${businessScore}</span></div>
+                    </div>
+                </div>
+                <p class="contractor-desc">${escapeHtml(business.specialty)}</p>
+                <div class="contractor-meta"><span><i class="fas fa-map-marker-alt"></i> ${businessCity}</span><span><i class="fas fa-wrench"></i> ${businessTradeLabel}</span><span><i class="fas fa-route"></i> ${escapeHtml(business.distance)}</span></div>
+                ${renderAvailabilityIndicator(business.availability)}
+                <div class="contractor-actions">
+                    <a href="#" class="btn btn-secondary">Profil ansehen</a>
+                    <button type="button" class="btn btn-primary contractor-chat-btn" data-chat-business="${businessName}" data-chat-city="${businessCity}" data-chat-trade="${businessTradeLabel}"><i class="fas fa-comments"></i> Direkt chatten</button>
+                </div>
+            </article>
+        `;
+    }).join('');
+
+    contractorCards = Array.from(contractorsGrid.querySelectorAll('.contractor-card'));
+    revealOnScroll();
 };
 
 const navigateToContractorsPage = ({ query = '', trade = '', city = '' } = {}) => {
@@ -1779,11 +2037,17 @@ const applyContractorFiltersFromUrl = () => {
     contractorSearchInput.value = query;
 
     if (contractorTradeFilter) {
-        contractorTradeFilter.value = FILTER_VALUE_MAP.trade[trade] || '';
+        const nextTradeValue = FILTER_VALUE_MAP.trade[trade] || trade;
+        contractorTradeFilter.value = Array.from(contractorTradeFilter.options).some((option) => option.value === nextTradeValue)
+            ? nextTradeValue
+            : '';
     }
 
     if (contractorCityFilter) {
-        contractorCityFilter.value = FILTER_VALUE_MAP.city[city] || '';
+        const nextCityValue = FILTER_VALUE_MAP.city[city] || city;
+        contractorCityFilter.value = Array.from(contractorCityFilter.options).some((option) => option.value === nextCityValue)
+            ? nextCityValue
+            : '';
     }
 
     updateContractorSearch();
@@ -1819,7 +2083,7 @@ const updateContractorSearch = () => {
 
         const matchesQuery = !searchTerms.length || searchTerms.some((term) => searchableText.includes(term));
         const matchesTrade = !trade || cardTrade === trade;
-        const matchesCity = !city || cardCity === city;
+        const matchesCity = !city || cardCity.includes(city);
         const isVisible = matchesQuery && matchesTrade && matchesCity;
 
         card.classList.toggle('is-hidden', !isVisible);
@@ -1935,6 +2199,9 @@ contractorResetButton?.addEventListener('click', () => {
 });
 
 updateContractorSearch();
+if (!contractorCards.length && isContractorsPage) {
+    renderContractorDirectory();
+}
 applyContractorFiltersFromUrl();
 
 if (heroServiceInput) {
@@ -2234,8 +2501,6 @@ paymentForm?.addEventListener('submit', async (event) => {
         paymentMethod
     });
     let providerUrl = getProviderCheckoutUrl(paymentMethod);
-    const isImmediatePayment = IMMEDIATE_PAYMENT_METHODS.has(paymentMethod);
-    const isExternalCheckout = EXTERNAL_CHECKOUT_METHODS.has(paymentMethod);
     let externalReference = '';
 
     if (paymentMethod === 'stripe' && paymentConfig.stripeEnabled) {
@@ -2280,53 +2545,41 @@ paymentForm?.addEventListener('submit', async (event) => {
         window.open(providerUrl, '_blank', 'noopener');
     }
 
-    const updatedThread = getChatThread(activeChatBusiness.name).map((message) => {
-        if (message.type === 'offer' && message.offerId === activePaymentOfferId) {
-            return {
-                ...message,
-                status: isExternalCheckout ? 'checkout' : isImmediatePayment ? 'paid' : 'pending',
-                paymentMethod,
-                amountPaid: isImmediatePayment && !isExternalCheckout ? Number(message.amount || 0) : getPaidAmount(message),
-                paidAt: isImmediatePayment && !isExternalCheckout ? new Date().toISOString() : '',
-                providerRedirected: Boolean(providerUrl),
-                externalReference,
-                checkoutRequestedAt: isExternalCheckout ? new Date().toISOString() : '',
-                ...invoiceData
-            };
+    if (shouldUseLocalDemoCheckout(paymentMethod, providerUrl)) {
+        updatePaymentDemoState();
+
+        if (paymentStatus) {
+            paymentStatus.textContent = `Lokaler ${getPaymentMethodLabel(paymentMethod)}-Checkout ist bereit. Bestaetige ihn direkt im Dialog.`;
         }
 
-        return message;
-    });
+        paymentDemoConfirm?.onclick = () => {
+            finalizePaymentFlow({
+                paymentMethod,
+                existingOffer,
+                providerUrl,
+                externalReference,
+                invoiceData,
+                usedDemoCheckout: true
+            });
+        };
 
-    updatedThread.push({
-        sender: 'business',
-        author: activeChatBusiness.name,
-        text: isExternalCheckout
-            ? `${getPaymentMethodLabel(paymentMethod)} wurde geoeffnet. Nach deiner Rueckkehr aktualisiert Nailit den Chat automatisch.`
-            : paymentMethod === 'invoice'
-            ? `Danke. Wir haben dir die Rechnung ${invoiceData.invoiceNumber} direkt in den Chat gelegt. Du kannst sie sofort als PDF herunterladen.`
-            : paymentMethod === 'transfer'
-                ? `Danke. Bitte ueberweise den Betrag mit der Referenz ${invoiceData.invoiceNumber}. Die Bankdaten und die PDF-Rechnung stehen jetzt im Chat bereit.`
-                : `Danke. Die Zahlung per ${getPaymentMethodLabel(paymentMethod)} ist eingegangen. Wir bestaetigen den Einsatz jetzt direkt ueber Nailit.`,
-        timestamp: new Date().toISOString()
-    });
+        paymentDemoCancel?.onclick = () => {
+            if (paymentStatus) {
+                paymentStatus.textContent = `${getPaymentMethodLabel(paymentMethod)} wurde abgebrochen.`;
+            }
+        };
 
-    saveChatThread(activeChatBusiness.name, updatedThread);
-
-    if (contractorChatStatus) {
-        contractorChatStatus.textContent = isExternalCheckout
-            ? `${getPaymentMethodLabel(paymentMethod)} wurde geoeffnet. Nach deiner Rueckkehr wird der Status aktualisiert.`
-            : paymentMethod === 'invoice'
-            ? `Rechnung ${invoiceData.invoiceNumber} fuer ${activeChatBusiness.name} wurde erstellt.`
-            : paymentMethod === 'transfer'
-                ? `Ueberweisungsdaten fuer ${activeChatBusiness.name} wurden bereitgestellt.`
-                : paymentMethod === 'stripe' && !providerUrl
-                    ? `Stripe ist fuer ${activeChatBusiness.name} aktuell nur im Demo-Modus verfuegbar.`
-                    : `Zahlung fuer ${activeChatBusiness.name} wurde per ${getPaymentMethodLabel(paymentMethod)} bestaetigt.`;
+        return;
     }
 
-    closePaymentModal();
-    renderChatThread();
+    finalizePaymentFlow({
+        paymentMethod,
+        existingOffer,
+        providerUrl,
+        externalReference,
+        invoiceData,
+        usedDemoCheckout: false
+    });
 });
 
 aiDiagnoseClose?.addEventListener('click', closeAiDiagnoseModal);
@@ -2338,6 +2591,11 @@ contractorChatBackdrop?.addEventListener('click', closeContractorChat);
 paymentClose?.addEventListener('click', closePaymentModal);
 paymentBackdrop?.addEventListener('click', closePaymentModal);
 paymentCancel?.addEventListener('click', closePaymentModal);
+paymentDemoCancel?.addEventListener('click', () => {
+    if (paymentStatus) {
+        paymentStatus.textContent = 'Zahlung wurde nicht bestaetigt.';
+    }
+});
 paymentForm?.querySelectorAll('input[name="paymentMethod"]').forEach((field) => {
     field.addEventListener('change', updatePaymentMethodDetails);
 });
