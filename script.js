@@ -122,6 +122,7 @@ const PAYMENT_METHODS = {
 
 const IMMEDIATE_PAYMENT_METHODS = new Set(['stripe', 'paypal', 'applepay', 'klarna']);
 const TRACKED_SETTLEMENT_METHODS = new Set(['invoice', 'transfer']);
+const EXTERNAL_CHECKOUT_METHODS = new Set(['stripe', 'paypal']);
 
 const businesses = {
     sanitaer: [
@@ -373,6 +374,10 @@ const getOfferStatusLabel = (message) => {
         return 'Storniert';
     }
 
+    if (message.status === 'checkout') {
+        return 'Checkout offen';
+    }
+
     if (message.status === 'paid') {
         return 'Bezahlt';
     }
@@ -397,6 +402,10 @@ const getOfferStatusNote = (message) => {
         return message.cancelledAt
             ? `Angebot am ${formatLongDate(message.cancelledAt)} storniert.${getPaidAmount(message) ? ` Bereits bezahlt: ${formatCurrency(getPaidAmount(message))}.` : ''}`
             : 'Angebot wurde storniert.';
+    }
+
+    if (message.status === 'checkout') {
+        return `${getPaymentMethodLabel(message.paymentMethod)} wurde geoeffnet. Nach der Rueckkehr wird der Chat automatisch aktualisiert.`;
     }
 
     if (message.paymentMethod === 'invoice' && message.invoiceNumber) {
@@ -553,6 +562,7 @@ const getProviderCheckoutUrl = (paymentMethod) => {
 };
 
 const createStripeCheckoutSession = async ({ offer, business }) => {
+    const scope = getCurrentChatScope();
     const response = await fetch('/api/payments/stripe/checkout-session', {
         method: 'POST',
         headers: {
@@ -562,7 +572,8 @@ const createStripeCheckoutSession = async ({ offer, business }) => {
             amount: offer.amount,
             title: offer.title,
             offerId: offer.offerId,
-            businessName: business.name
+            businessName: business.name,
+            scope
         })
     });
 
@@ -570,6 +581,57 @@ const createStripeCheckoutSession = async ({ offer, business }) => {
 
     if (!response.ok) {
         throw new Error(payload.error || 'Stripe Checkout konnte nicht gestartet werden.');
+    }
+
+    return payload;
+};
+
+const verifyStripeCheckoutSession = async (sessionId) => {
+    const response = await fetch(`/api/payments/stripe/session-status?sessionId=${encodeURIComponent(sessionId)}`);
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(payload.error || 'Stripe Session konnte nicht geprueft werden.');
+    }
+
+    return payload;
+};
+
+const createPaypalOrder = async ({ offer, business }) => {
+    const response = await fetch('/api/payments/paypal/order', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            amount: offer.amount,
+            title: offer.title,
+            offerId: offer.offerId,
+            businessName: business.name,
+            scope: getCurrentChatScope()
+        })
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(payload.error || 'PayPal Bestellung konnte nicht gestartet werden.');
+    }
+
+    return payload;
+};
+
+const capturePaypalOrder = async (orderId) => {
+    const response = await fetch('/api/payments/paypal/capture-order', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ orderId })
+    });
+    const payload = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+        throw new Error(payload.error || 'PayPal Zahlung konnte nicht bestaetigt werden.');
     }
 
     return payload;
@@ -623,7 +685,9 @@ const renderOfferActions = (message) => {
     if (message.status === 'open') {
         actions.push(`<button type="button" class="btn btn-primary chat-offer-pay-btn" data-offer-id="${escapeHtml(message.offerId)}"><i class="fas fa-credit-card"></i> Zahlungsart waehlen</button>`);
     } else {
-        const settledLabel = message.status === 'pending'
+        const settledLabel = message.status === 'checkout'
+            ? `${getPaymentMethodLabel(message.paymentMethod)} Checkout geoeffnet`
+            : message.status === 'pending'
             ? (message.paymentMethod === 'invoice' ? 'Rechnung im Chat bereitgestellt' : 'Ueberweisung wartet auf Zahlungseingang')
             : message.status === 'partial'
                 ? `Teilzahlung erfasst: ${formatCurrency(getPaidAmount(message))}`
@@ -632,11 +696,11 @@ const renderOfferActions = (message) => {
                     : `Zahlung per ${getPaymentMethodLabel(message.paymentMethod)} bestaetigt`;
         const iconClass = message.status === 'cancelled'
             ? 'fa-ban'
-            : message.status === 'partial' || message.status === 'pending'
+            : message.status === 'partial' || message.status === 'pending' || message.status === 'checkout'
                 ? 'fa-hourglass-half'
                 : 'fa-circle-check';
 
-        actions.push(`<div class="chat-offer-paid${message.status === 'pending' || message.status === 'partial' ? ' is-pending' : ''}${message.status === 'cancelled' ? ' is-cancelled' : ''}"><i class="fas ${iconClass}"></i> ${escapeHtml(settledLabel)}</div>`);
+        actions.push(`<div class="chat-offer-paid${message.status === 'pending' || message.status === 'partial' || message.status === 'checkout' ? ' is-pending' : ''}${message.status === 'cancelled' ? ' is-cancelled' : ''}"><i class="fas ${iconClass}"></i> ${escapeHtml(settledLabel)}</div>`);
     }
 
     if (canTrackSettlement && outstandingAmount > 0) {
@@ -649,7 +713,7 @@ const renderOfferActions = (message) => {
         actions.push(`<button type="button" class="btn btn-secondary" data-offer-complete="${escapeHtml(message.offerId)}"><i class="fas fa-check-double"></i> Rest als bezahlt</button>`);
     }
 
-    if (!['paid', 'cancelled'].includes(message.status)) {
+    if (!['paid', 'cancelled', 'checkout'].includes(message.status)) {
         actions.push(`<button type="button" class="btn btn-secondary chat-offer-action-danger" data-offer-cancel="${escapeHtml(message.offerId)}"><i class="fas fa-ban"></i> Stornieren</button>`);
     }
 
@@ -798,7 +862,7 @@ const renderChatThread = () => {
         ? messages.map((message) => {
             if (message.type === 'offer') {
                 return `
-                    <article class="chat-message is-${message.sender}">
+                    <article class="chat-message is-${message.sender}" data-offer-card="${escapeHtml(message.offerId)}">
                         <div class="chat-message-meta">
                             <strong>${escapeHtml(message.author)}</strong>
                             <span>${formatChatTime(message.timestamp)}</span>
@@ -870,6 +934,11 @@ const openContractorChat = (business) => {
     contractorChatModal?.classList.remove('is-hidden');
     syncModalBodyState();
     renderChatThread();
+    void syncChatThreadFromServer(business.name).then(() => {
+        if (activeChatBusiness?.name === business.name) {
+            renderChatThread();
+        }
+    });
 
     window.setTimeout(() => {
         contractorChatInput?.focus();
@@ -927,22 +996,87 @@ const saveChatThreads = (threads) => {
     writeStorage(STORAGE_KEYS.chats, threads);
 };
 
-const getChatThreadKey = (businessName) => {
+const normalizeChatScope = (scopeValue) => {
+    return normalizeSearchText(scopeValue || 'guest').replace(/\s+/g, '-');
+};
+
+const getCurrentChatScope = () => {
     const session = getSession();
-    const scope = normalizeSearchText(session?.email || 'guest').replace(/\s+/g, '-');
+    return normalizeChatScope(session?.email || 'guest');
+};
+
+const getChatThreadKey = (businessName, scope = getCurrentChatScope()) => {
     const business = normalizeSearchText(businessName).replace(/\s+/g, '-');
     return `${scope}::${business}`;
 };
 
-const getChatThread = (businessName) => {
+const getChatThread = (businessName, scope = getCurrentChatScope()) => {
     const threads = getChatThreads();
-    return threads[getChatThreadKey(businessName)] || [];
+    return threads[getChatThreadKey(businessName, scope)] || [];
 };
 
-const saveChatThread = (businessName, messages) => {
+const saveChatThreadLocally = (businessName, messages, scope = getCurrentChatScope()) => {
     const threads = getChatThreads();
-    threads[getChatThreadKey(businessName)] = messages;
+    threads[getChatThreadKey(businessName, scope)] = messages;
     saveChatThreads(threads);
+};
+
+const fetchServerChatThread = async (businessName, scope = getCurrentChatScope()) => {
+    try {
+        const response = await fetch(`/api/chat-threads?scope=${encodeURIComponent(scope)}&business=${encodeURIComponent(businessName)}`);
+
+        if (!response.ok) {
+            return null;
+        }
+
+        const payload = await response.json();
+        return Array.isArray(payload.messages) ? payload.messages : [];
+    } catch {
+        return null;
+    }
+};
+
+const persistChatThreadToServer = async (businessName, messages, scope = getCurrentChatScope()) => {
+    try {
+        await fetch('/api/chat-threads', {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                scope,
+                businessName,
+                messages
+            })
+        });
+    } catch {
+        // Local cache remains available if the API is offline.
+    }
+};
+
+const saveChatThread = (businessName, messages, options = {}) => {
+    const scope = options.scope || getCurrentChatScope();
+    saveChatThreadLocally(businessName, messages, scope);
+
+    if (options.persist !== false) {
+        void persistChatThreadToServer(businessName, messages, scope);
+    }
+};
+
+const syncChatThreadFromServer = async (businessName, scope = getCurrentChatScope()) => {
+    const serverMessages = await fetchServerChatThread(businessName, scope);
+    const localMessages = getChatThread(businessName, scope);
+
+    if (Array.isArray(serverMessages) && serverMessages.length) {
+        saveChatThreadLocally(businessName, serverMessages, scope);
+        return serverMessages;
+    }
+
+    if (Array.isArray(serverMessages) && !serverMessages.length && localMessages.length) {
+        void persistChatThreadToServer(businessName, localMessages, scope);
+    }
+
+    return localMessages;
 };
 
 const formatChatTime = (value) => {
@@ -1031,31 +1165,36 @@ const createOfferMessage = (business) => {
     };
 };
 
-const pushBusinessChatEvent = (text) => {
-    if (!activeChatBusiness || !text) {
+const pushBusinessChatEvent = (text, businessName = activeChatBusiness?.name, options = {}) => {
+    if (!businessName || !text) {
         return;
     }
 
+    const scope = options.scope || getCurrentChatScope();
+
     const updatedThread = [
-        ...getChatThread(activeChatBusiness.name),
+        ...getChatThread(businessName, scope),
         {
             sender: 'business',
-            author: activeChatBusiness.name,
+            author: businessName,
             text,
             timestamp: new Date().toISOString()
         }
     ];
 
-    saveChatThread(activeChatBusiness.name, updatedThread);
+    saveChatThread(businessName, updatedThread, { scope });
 };
 
-const updateOfferMessage = (offerId, transform) => {
-    if (!activeChatBusiness) {
+const updateOfferMessage = (offerId, transform, options = {}) => {
+    const businessName = options.businessName || activeChatBusiness?.name;
+    const scope = options.scope || getCurrentChatScope();
+
+    if (!businessName) {
         return null;
     }
 
     let updatedOffer = null;
-    const updatedThread = getChatThread(activeChatBusiness.name).map((message) => {
+    const updatedThread = getChatThread(businessName, scope).map((message) => {
         if (message.type === 'offer' && message.offerId === offerId) {
             updatedOffer = transform(message);
             return updatedOffer;
@@ -1068,8 +1207,133 @@ const updateOfferMessage = (offerId, transform) => {
         return null;
     }
 
-    saveChatThread(activeChatBusiness.name, updatedThread);
+    saveChatThread(businessName, updatedThread, { scope });
     return updatedOffer;
+};
+
+const findBusinessRecord = (businessName) => {
+    return Object.entries(businesses).flatMap(([trade, items]) => {
+        return items.map((business) => ({
+            ...business,
+            trade
+        }));
+    }).find((business) => business.name === businessName) || null;
+};
+
+const scrollToOfferCard = (offerId) => {
+    if (!offerId || !contractorChatMessages) {
+        return;
+    }
+
+    const offerCard = contractorChatMessages.querySelector(`[data-offer-card="${CSS.escape(offerId)}"]`);
+    if (!offerCard) {
+        return;
+    }
+
+    offerCard.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+    });
+    offerCard.classList.add('is-highlighted');
+    window.setTimeout(() => {
+        offerCard.classList.remove('is-highlighted');
+    }, 2200);
+};
+
+const processCheckoutReturn = async () => {
+    const params = new URLSearchParams(window.location.search);
+    const checkoutState = params.get('checkout');
+    const provider = params.get('provider');
+    const offerId = params.get('offer');
+    const businessName = params.get('business');
+    const scope = normalizeChatScope(params.get('scope') || getCurrentChatScope());
+
+    if (!checkoutState || !provider || !offerId || !businessName) {
+        return;
+    }
+
+    await syncChatThreadFromServer(businessName, scope);
+
+    try {
+        if (checkoutState === 'success') {
+            if (provider === 'stripe' && paymentConfig.stripeEnabled) {
+                const sessionId = params.get('session_id');
+                if (!sessionId) {
+                    throw new Error('Stripe Session-ID fehlt in der Rueckkehr-URL.');
+                }
+
+                const session = await verifyStripeCheckoutSession(sessionId);
+                if (session.paymentStatus !== 'paid') {
+                    throw new Error('Stripe Checkout ist noch nicht als bezahlt bestaetigt.');
+                }
+            }
+
+            if (provider === 'paypal' && paymentConfig.paypalEnabled) {
+                const orderId = params.get('token');
+                if (!orderId) {
+                    throw new Error('PayPal Order-ID fehlt in der Rueckkehr-URL.');
+                }
+
+                const capture = await capturePaypalOrder(orderId);
+                if (!String(capture.status || '').toUpperCase().includes('COMPLETED')) {
+                    throw new Error('PayPal Zahlung ist noch nicht abgeschlossen.');
+                }
+            }
+
+            const updatedOffer = updateOfferMessage(offerId, (message) => ({
+                ...message,
+                status: 'paid',
+                amountPaid: Number(message.amount || 0),
+                paidAt: new Date().toISOString(),
+                providerRedirected: true,
+                externalCheckoutComplete: true
+            }), { businessName, scope });
+
+            if (updatedOffer) {
+                pushBusinessChatEvent(`Die ${getPaymentMethodLabel(provider)}-Zahlung fuer ${updatedOffer.title} wurde nach dem externen Checkout bestaetigt.`, businessName, { scope });
+            }
+        } else {
+            const updatedOffer = updateOfferMessage(offerId, (message) => ({
+                ...message,
+                status: 'open',
+                paymentMethod: '',
+                providerRedirected: false,
+                externalCheckoutComplete: false,
+                checkoutCancelledAt: new Date().toISOString()
+            }), { businessName, scope });
+
+            if (updatedOffer) {
+                pushBusinessChatEvent(`${getPaymentMethodLabel(provider)} wurde abgebrochen. Das Angebot ${updatedOffer.title} ist wieder offen.`, businessName, { scope });
+            }
+        }
+
+        const matchingBusiness = findBusinessRecord(businessName);
+        if (!activeChatBusiness && matchingBusiness && isContractorsPage) {
+            openContractorChat(matchingBusiness);
+            window.setTimeout(() => {
+                scrollToOfferCard(offerId);
+            }, 260);
+        } else if (activeChatBusiness?.name === businessName) {
+            renderChatThread();
+            scrollToOfferCard(offerId);
+        }
+    } catch (error) {
+        if (contractorChatStatus) {
+            contractorChatStatus.textContent = error.message || 'Checkout konnte nicht final bestaetigt werden.';
+        }
+    } finally {
+        params.delete('checkout');
+        params.delete('provider');
+        params.delete('offer');
+        params.delete('business');
+        params.delete('scope');
+        params.delete('session_id');
+        params.delete('token');
+        params.delete('PayerID');
+        const nextSearch = params.toString();
+        const nextUrl = `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`;
+        window.history.replaceState({}, '', nextUrl);
+    }
 };
 
 const getAvailabilityIndicator = (availability) => {
@@ -1971,6 +2235,8 @@ paymentForm?.addEventListener('submit', async (event) => {
     });
     let providerUrl = getProviderCheckoutUrl(paymentMethod);
     const isImmediatePayment = IMMEDIATE_PAYMENT_METHODS.has(paymentMethod);
+    const isExternalCheckout = EXTERNAL_CHECKOUT_METHODS.has(paymentMethod);
+    let externalReference = '';
 
     if (paymentMethod === 'stripe' && paymentConfig.stripeEnabled) {
         try {
@@ -1979,9 +2245,29 @@ paymentForm?.addEventListener('submit', async (event) => {
                 business: activeChatBusiness
             });
             providerUrl = session.url || providerUrl;
+            externalReference = session.id || '';
         } catch (error) {
             if (paymentStatus) {
                 paymentStatus.textContent = error.message || 'Stripe Checkout konnte nicht gestartet werden.';
+            }
+
+            if (!providerUrl) {
+                return;
+            }
+        }
+    }
+
+    if (paymentMethod === 'paypal' && paymentConfig.paypalEnabled) {
+        try {
+            const order = await createPaypalOrder({
+                offer: existingOffer,
+                business: activeChatBusiness
+            });
+            providerUrl = order.approveUrl || providerUrl;
+            externalReference = order.id || '';
+        } catch (error) {
+            if (paymentStatus) {
+                paymentStatus.textContent = error.message || 'PayPal konnte nicht gestartet werden.';
             }
 
             if (!providerUrl) {
@@ -1998,11 +2284,13 @@ paymentForm?.addEventListener('submit', async (event) => {
         if (message.type === 'offer' && message.offerId === activePaymentOfferId) {
             return {
                 ...message,
-                status: isImmediatePayment ? 'paid' : 'pending',
+                status: isExternalCheckout ? 'checkout' : isImmediatePayment ? 'paid' : 'pending',
                 paymentMethod,
-                amountPaid: isImmediatePayment ? Number(message.amount || 0) : getPaidAmount(message),
-                paidAt: isImmediatePayment ? new Date().toISOString() : '',
+                amountPaid: isImmediatePayment && !isExternalCheckout ? Number(message.amount || 0) : getPaidAmount(message),
+                paidAt: isImmediatePayment && !isExternalCheckout ? new Date().toISOString() : '',
                 providerRedirected: Boolean(providerUrl),
+                externalReference,
+                checkoutRequestedAt: isExternalCheckout ? new Date().toISOString() : '',
                 ...invoiceData
             };
         }
@@ -2013,7 +2301,9 @@ paymentForm?.addEventListener('submit', async (event) => {
     updatedThread.push({
         sender: 'business',
         author: activeChatBusiness.name,
-        text: paymentMethod === 'invoice'
+        text: isExternalCheckout
+            ? `${getPaymentMethodLabel(paymentMethod)} wurde geoeffnet. Nach deiner Rueckkehr aktualisiert Nailit den Chat automatisch.`
+            : paymentMethod === 'invoice'
             ? `Danke. Wir haben dir die Rechnung ${invoiceData.invoiceNumber} direkt in den Chat gelegt. Du kannst sie sofort als PDF herunterladen.`
             : paymentMethod === 'transfer'
                 ? `Danke. Bitte ueberweise den Betrag mit der Referenz ${invoiceData.invoiceNumber}. Die Bankdaten und die PDF-Rechnung stehen jetzt im Chat bereit.`
@@ -2024,7 +2314,9 @@ paymentForm?.addEventListener('submit', async (event) => {
     saveChatThread(activeChatBusiness.name, updatedThread);
 
     if (contractorChatStatus) {
-        contractorChatStatus.textContent = paymentMethod === 'invoice'
+        contractorChatStatus.textContent = isExternalCheckout
+            ? `${getPaymentMethodLabel(paymentMethod)} wurde geoeffnet. Nach deiner Rueckkehr wird der Status aktualisiert.`
+            : paymentMethod === 'invoice'
             ? `Rechnung ${invoiceData.invoiceNumber} fuer ${activeChatBusiness.name} wurde erstellt.`
             : paymentMethod === 'transfer'
                 ? `Ueberweisungsdaten fuer ${activeChatBusiness.name} wurden bereitgestellt.`
@@ -2075,6 +2367,7 @@ registerForm?.querySelectorAll('input[name="registerRole"]').forEach((field) => 
 
 updateRegisterRoleFields();
 loadPaymentConfig();
+void processCheckoutReturn();
 
 if (registerForm) {
     registerForm.addEventListener('submit', (event) => {
