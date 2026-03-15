@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nailit | Direktchat</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles.css">
+    <script>if(localStorage.getItem('nailit-theme')==='dark'){document.documentElement.setAttribute('data-theme','dark');}</script>
+</head>
+<body>
+    <main class="messenger-page">
+        <section class="messenger-shell">
+            <header class="messenger-header">
+                <div class="messenger-header-main">
+                    <a href="contractors.html" class="messenger-back-link"><i class="fas fa-arrow-left"></i><span>Zurück</span></a>
+                    <div class="messenger-avatar"><i class="fas fa-building"></i></div>
+                    <div class="messenger-copy">
+                        <p class="messenger-kicker">Direktchat</p>
+                        <h1 id="messengerBusinessName">Betrieb</h1>
+                        <p id="messengerBusinessMeta">Direkter Chat mit dem Betrieb</p>
+                    </div>
+                </div>
+                <div class="messenger-header-actions">
+                    <button type="button" class="theme-toggle" id="themeToggle" aria-label="Dark Mode umschalten">
+                        <i class="fas fa-moon" id="themeIcon"></i>
+                    </button>
+                </div>
+            </header>
+
+            <div class="messenger-quickbar">
+                <button type="button" class="messenger-chip" id="toggleQuotePanel"><i class="fas fa-tag"></i><span>Preis senden</span></button>
+                <button type="button" class="messenger-chip" id="toggleAppointmentPanel"><i class="fas fa-calendar-plus"></i><span>Termin senden</span></button>
+                <p class="messenger-status" id="messengerStatus">Chat wird geladen...</p>
+            </div>
+
+            <section class="messenger-panel is-hidden" id="quotePanel">
+                <div class="messenger-panel-grid">
+                    <label>
+                        <span>Titel</span>
+                        <input type="text" id="quoteTitle" placeholder="z.B. Angebot Naildesign">
+                    </label>
+                    <label>
+                        <span>Preis in EUR</span>
+                        <input type="number" id="quoteAmount" min="0" step="1" placeholder="z.B. 79">
+                    </label>
+                </div>
+                <label>
+                    <span>Hinweis</span>
+                    <textarea id="quoteNote" rows="3" placeholder="Kurze Beschreibung zum Preis oder zur Leistung"></textarea>
+                </label>
+                <div class="messenger-panel-actions">
+                    <button type="button" class="btn btn-primary" id="sendQuoteButton"><i class="fas fa-paper-plane"></i> Preis senden</button>
+                    <button type="button" class="btn btn-secondary" id="cancelQuoteButton">Abbrechen</button>
+                </div>
+            </section>
+
+            <section class="messenger-panel is-hidden" id="appointmentPanel">
+                <div class="messenger-panel-grid">
+                    <label>
+                        <span>Datum</span>
+                        <input type="date" id="appointmentDate">
+                    </label>
+                    <label>
+                        <span>Uhrzeit</span>
+                        <input type="time" id="appointmentTime">
+                    </label>
+                    <label>
+                        <span>Dauer</span>
+                        <select id="appointmentDuration">
+                            <option value="30">30 Minuten</option>
+                            <option value="60" selected>60 Minuten</option>
+                            <option value="90">90 Minuten</option>
+                            <option value="120">120 Minuten</option>
+                        </select>
+                    </label>
+                    <label>
+                        <span>Preis optional</span>
+                        <input type="number" id="appointmentPrice" min="0" step="1" placeholder="z.B. 59">
+                    </label>
+                </div>
+                <label>
+                    <span>Hinweis</span>
+                    <textarea id="appointmentNote" rows="3" placeholder="z.B. Bitte 10 Minuten vorher anrufen"></textarea>
+                </label>
+                <div class="messenger-panel-actions">
+                    <button type="button" class="btn btn-primary" id="sendAppointmentButton"><i class="fas fa-calendar-check"></i> Termin senden</button>
+                    <button type="button" class="btn btn-secondary" id="cancelAppointmentButton">Abbrechen</button>
+                </div>
+            </section>
+
+            <section class="messenger-panel messenger-payment-panel is-hidden" id="paymentPanel">
+                <div class="payment-shell">
+                    <div class="payment-header">
+                        <p class="card-topline">Zahlung im Chat</p>
+                        <h2 id="paymentTitle">Zahlungsart auswählen</h2>
+                        <p>Wähle direkt im Chat aus, wie dieses Angebot bezahlt werden soll.</p>
+                    </div>
+
+                    <div class="payment-summary">
+                        <div>
+                            <span class="payment-summary-label">Betrieb</span>
+                            <strong id="paymentBusiness">-</strong>
+                        </div>
+                        <div>
+                            <span class="payment-summary-label">Betrag</span>
+                            <strong id="paymentAmount">-</strong>
+                        </div>
+                    </div>
+
+                    <form class="payment-form" id="paymentForm">
+                        <div class="payment-methods-grid">
+                            <label class="payment-option"><input type="radio" name="paymentMethod" value="stripe" checked><span class="payment-option-box"><i class="fas fa-credit-card"></i><strong>Stripe</strong><small>Checkout oder lokaler Demo-Flow</small></span></label>
+                            <label class="payment-option"><input type="radio" name="paymentMethod" value="paypal"><span class="payment-option-box"><i class="fab fa-paypal"></i><strong>PayPal</strong><small>PayPal oder lokaler Demo-Flow</small></span></label>
+                            <label class="payment-option"><input type="radio" name="paymentMethod" value="invoice"><span class="payment-option-box"><i class="fas fa-file-invoice"></i><strong>Rechnung</strong><small>Rechnung direkt im Chat hinterlegen</small></span></label>
+                            <label class="payment-option"><input type="radio" name="paymentMethod" value="transfer"><span class="payment-option-box"><i class="fas fa-building-columns"></i><strong>Überweisung</strong><small>IBAN und Referenz direkt im Chat</small></span></label>
+                        </div>
+
+                        <div class="payment-provider-hint" id="paymentProviderHint"></div>
+                        <div class="payment-transfer-details is-hidden" id="paymentTransferDetails"></div>
+
+                        <div class="payment-demo-panel is-hidden" id="paymentDemoPanel">
+                            <div class="payment-demo-card">
+                                <p class="payment-demo-label">Lokaler Checkout</p>
+                                <h3 id="paymentDemoTitle">Zahlung in Nailit testen</h3>
+                                <p id="paymentDemoText">Diese Zahlungsart kann lokal bestätigt werden.</p>
+                                <div class="payment-demo-actions">
+                                    <button type="button" class="btn btn-secondary" id="paymentDemoCancel">Abbrechen</button>
+                                    <button type="button" class="btn btn-primary" id="paymentDemoConfirm"><i class="fas fa-check"></i> Demo-Zahlung bestätigen</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p class="payment-note">Die Auswahl wird direkt im Chat gespeichert und der Status des Angebots wird aktualisiert.</p>
+                        <div class="inline-error payment-status-line" id="paymentStatus"></div>
+
+                        <div class="payment-actions">
+                            <button type="button" class="btn btn-secondary" id="paymentCancelButton">Abbrechen</button>
+                            <button type="submit" class="btn btn-primary"><i class="fas fa-lock"></i> Zahlung starten</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section class="messenger-thread" id="messengerThread" aria-live="polite"></section>
+
+            <form class="messenger-composer" id="messengerComposer">
+                <label class="visually-hidden" for="messengerInput">Nachricht</label>
+                <textarea id="messengerInput" rows="1" placeholder="Nachricht schreiben"></textarea>
+                <button type="submit" class="messenger-send-btn" aria-label="Nachricht senden">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </form>
+        </section>
+    </main>
+
+    <script src="direct-chat-app.js"></script>
+</body>
+</html>

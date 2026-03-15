@@ -185,6 +185,37 @@ const upsertChatThreadStatement = db.prepare(`
         updated_at = excluded.updated_at
 `);
 
+const liveChatClients = new Map();
+
+const getLiveChatKey = (scope, businessName) => {
+    return `${String(scope)}::${String(businessName)}`;
+};
+
+const sendLiveChatEvent = (response, payload) => {
+    response.write(`event: thread\n`);
+    response.write(`data: ${JSON.stringify(payload)}\n\n`);
+};
+
+const broadcastLiveChatThread = ({ scope, businessName, messages, updatedAt }) => {
+    const clientKey = getLiveChatKey(scope, businessName);
+    const clients = liveChatClients.get(clientKey);
+
+    if (!clients?.size) {
+        return;
+    }
+
+    const payload = {
+        scope,
+        businessName,
+        messages,
+        updatedAt
+    };
+
+    clients.forEach((clientResponse) => {
+        sendLiveChatEvent(clientResponse, payload);
+    });
+};
+
 const paymentConfig = {
     stripeCheckoutUrl: process.env.STRIPE_PAYMENT_LINK || '',
     paypalCheckoutUrl: process.env.PAYPAL_CHECKOUT_URL || '',
@@ -228,6 +259,49 @@ app.get('/api/chat-threads', (req, res) => {
     });
 });
 
+app.get('/api/chat-threads/stream', (req, res) => {
+    const scope = String(req.query.scope || '').trim();
+    const businessName = String(req.query.business || '').trim();
+
+    if (!scope || !businessName) {
+        return res.status(400).json({ error: 'scope und business sind erforderlich.' });
+    }
+
+    const clientKey = getLiveChatKey(scope, businessName);
+    const existingClients = liveChatClients.get(clientKey) || new Set();
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+
+    existingClients.add(res);
+    liveChatClients.set(clientKey, existingClients);
+
+    const row = getChatThreadStatement.get(scope, businessName);
+    const messages = row ? JSON.parse(row.messages_json) : [];
+    sendLiveChatEvent(res, {
+        scope,
+        businessName,
+        messages,
+        updatedAt: row?.updated_at || null
+    });
+
+    const keepAlive = setInterval(() => {
+        res.write(': keep-alive\n\n');
+    }, 15000);
+
+    req.on('close', () => {
+        clearInterval(keepAlive);
+        existingClients.delete(res);
+
+        if (!existingClients.size) {
+            liveChatClients.delete(clientKey);
+        }
+    });
+});
+
 app.put('/api/chat-threads', (req, res) => {
     const { scope, businessName, messages } = req.body || {};
 
@@ -240,6 +314,13 @@ app.put('/api/chat-threads', (req, res) => {
         scope: String(scope),
         businessName: String(businessName),
         messagesJson: JSON.stringify(messages),
+        updatedAt
+    });
+
+    broadcastLiveChatThread({
+        scope: String(scope),
+        businessName: String(businessName),
+        messages,
         updatedAt
     });
 

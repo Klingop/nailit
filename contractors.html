@@ -318,6 +318,43 @@
                     <form class="contractor-chat-form" id="contractorChatForm">
                         <label class="contractor-chat-label" for="contractorChatInput">Nachricht</label>
                         <textarea id="contractorChatInput" rows="3" placeholder="Beschreibe dein Anliegen, stelle Rueckfragen oder sende Terminvorschlaege."></textarea>
+                        <div class="contractor-chat-toolbar">
+                            <button type="button" class="btn btn-secondary contractor-chat-secondary" id="appointmentToggle" aria-expanded="false"><i class="fas fa-calendar-plus"></i> Terminvorschlag senden</button>
+                            <p class="contractor-chat-helper" id="appointmentHelper">Lege Terminfenster direkt in den Chat und stimme danach die Zahlung in derselben Unterhaltung ab.</p>
+                        </div>
+                        <div class="chat-appointment-panel is-hidden" id="appointmentPanel">
+                            <div class="chat-appointment-grid">
+                                <label>
+                                    <span>Datum</span>
+                                    <input type="date" id="appointmentDate">
+                                </label>
+                                <label>
+                                    <span>Uhrzeit</span>
+                                    <input type="time" id="appointmentTime">
+                                </label>
+                                <label>
+                                    <span>Dauer</span>
+                                    <select id="appointmentDuration">
+                                        <option value="30">30 Minuten</option>
+                                        <option value="60" selected>60 Minuten</option>
+                                        <option value="90">90 Minuten</option>
+                                        <option value="120">120 Minuten</option>
+                                    </select>
+                                </label>
+                                <label id="appointmentPriceField">
+                                    <span>Preis / Reservierung</span>
+                                    <input type="number" id="appointmentPrice" min="0" step="1" placeholder="z.B. 79">
+                                </label>
+                            </div>
+                            <label>
+                                <span>Hinweis zum Termin</span>
+                                <input type="text" id="appointmentNote" placeholder="z.B. Zugang ueber Hof, Material vor Ort pruefen">
+                            </label>
+                            <div class="chat-appointment-panel-actions">
+                                <button type="button" class="btn btn-primary" id="appointmentSend"><i class="fas fa-calendar-check"></i> Termin in den Chat senden</button>
+                                <button type="button" class="btn btn-secondary" id="appointmentCancel">Abbrechen</button>
+                            </div>
+                        </div>
                         <div class="contractor-chat-composer">
                             <p class="contractor-chat-status" id="contractorChatStatus">Nachrichten werden in dieser Demo lokal innerhalb der Plattform gespeichert.</p>
                             <button type="submit" class="btn btn-primary contractor-chat-send"><i class="fas fa-paper-plane"></i> Nachricht senden</button>
@@ -858,24 +895,21 @@
                     '</div>' +
                     '<div class="contractor-actions">' +
                         '<a href="#" class="btn btn-secondary">Profil ansehen</a>' +
-                        '<button type="button" class="btn btn-primary contractor-chat-btn" data-chat-business="' + b.name + '" data-chat-city="' + b.city + '" data-chat-trade="' + tradeLabel + '"><i class="fas fa-comments"></i> Direkt chatten</button>' +
+                        '<a href="direct-chat.html?chatBusiness=' + encodeURIComponent(b.name) + '&chatCity=' + encodeURIComponent(b.city) + '&chatTrade=' + encodeURIComponent(tradeLabel) + '" class="btn btn-primary contractor-chat-btn" data-chat-business="' + b.name + '" data-chat-city="' + b.city + '" data-chat-trade="' + tradeLabel + '"><i class="fas fa-comments"></i> Direkt chatten</a>' +
                     '</div>';
 
                 grid.appendChild(card);
             });
 
-            // Chat-Buttons neu binden
+            // Chat-Buttons direkt an den neuen Nailit-Direktchat binden
             grid.querySelectorAll('.contractor-chat-btn').forEach(function(btn) {
                 btn.addEventListener('click', function() {
-                    var chatModal = document.getElementById('chatModal');
-                    if (chatModal) {
-                        var bName = this.getAttribute('data-chat-business');
-                        var bCity = this.getAttribute('data-chat-city');
-                        var bTrade = this.getAttribute('data-chat-trade');
-                        var titleEl = chatModal.querySelector('.chat-business-name, .chat-header h3');
-                        if (titleEl) titleEl.textContent = bName;
-                        chatModal.classList.remove('is-hidden');
-                        chatModal.style.display = 'flex';
+                    if (typeof window.openDirectChatForBusiness === 'function') {
+                        window.openDirectChatForBusiness({
+                            name: this.getAttribute('data-chat-business') || 'Betrieb',
+                            city: this.getAttribute('data-chat-city') || 'Deutschland',
+                            trade: this.getAttribute('data-chat-trade') || 'Handwerk'
+                        });
                     }
                 });
             });

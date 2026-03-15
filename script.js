@@ -43,6 +43,17 @@ const contractorChatMessages = document.getElementById('contractorChatMessages')
 const contractorChatForm = document.getElementById('contractorChatForm');
 const contractorChatInput = document.getElementById('contractorChatInput');
 const contractorChatStatus = document.getElementById('contractorChatStatus');
+const appointmentToggle = document.getElementById('appointmentToggle');
+const appointmentHelper = document.getElementById('appointmentHelper');
+const appointmentPanel = document.getElementById('appointmentPanel');
+const appointmentDate = document.getElementById('appointmentDate');
+const appointmentTime = document.getElementById('appointmentTime');
+const appointmentDuration = document.getElementById('appointmentDuration');
+const appointmentPriceField = document.getElementById('appointmentPriceField');
+const appointmentPrice = document.getElementById('appointmentPrice');
+const appointmentNote = document.getElementById('appointmentNote');
+const appointmentSend = document.getElementById('appointmentSend');
+const appointmentCancel = document.getElementById('appointmentCancel');
 const paymentModal = document.getElementById('paymentModal');
 const paymentBackdrop = document.getElementById('paymentBackdrop');
 const paymentClose = document.getElementById('paymentClose');
@@ -81,6 +92,8 @@ const urgencyField = document.getElementById('urgency');
 const aiSubmitButton = aiIssueForm?.querySelector('button[type="submit"]');
 const contractorSection = document.getElementById('contractors');
 const isContractorsPage = window.location.pathname.endsWith('/contractors.html') || window.location.pathname.endsWith('contractors.html');
+const isDirectChatPage = window.location.pathname.endsWith('/direct-chat.html') || window.location.pathname.endsWith('direct-chat.html');
+const DIRECT_CHAT_SCOPE = 'direct-shared';
 
 const SEARCH_ALIASES = {
     elektriker: ['elektro', 'elektrik', 'strom', 'steckdose', 'sicherung'],
@@ -112,6 +125,9 @@ const STORAGE_KEYS = {
 
 let activeChatBusiness = null;
 let activePaymentOfferId = null;
+let liveChatEventSource = null;
+let liveChatSubscriptionKey = '';
+let liveChatPollInterval = null;
 let paymentConfig = {
     stripeCheckoutUrl: '',
     paypalCheckoutUrl: '',
@@ -354,6 +370,24 @@ const closeAuthModal = () => {
 
 const getPaymentMethodLabel = (paymentMethod) => PAYMENT_METHODS[paymentMethod] || 'Zahlung';
 
+const getActiveChatActor = () => {
+    const session = getSession();
+
+    if (session?.role === 'betrieb') {
+        return {
+            role: 'betrieb',
+            sender: 'business',
+            name: session.name || 'Betrieb'
+        };
+    }
+
+    return {
+        role: 'kunde',
+        sender: 'customer',
+        name: session?.name || 'Gast'
+    };
+};
+
 const formatLongDate = (value) => {
     return new Intl.DateTimeFormat('de-DE', {
         day: '2-digit',
@@ -440,6 +474,350 @@ const getOfferStatusNote = (message) => {
     }
 
     return '';
+};
+
+const formatAppointmentDateTime = (value) => {
+    const parsedValue = new Date(value);
+
+    if (Number.isNaN(parsedValue.getTime())) {
+        return 'Termin offen';
+    }
+
+    return new Intl.DateTimeFormat('de-DE', {
+        weekday: 'short',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(parsedValue);
+};
+
+const formatDurationMinutes = (value) => {
+    const minutes = Number(value || 0);
+
+    if (!minutes) {
+        return 'Flexibel';
+    }
+
+    if (minutes >= 60 && minutes % 60 === 0) {
+        const hours = minutes / 60;
+        return `${hours} Std.`;
+    }
+
+    return `${minutes} Min.`;
+};
+
+const getSuggestedAppointmentAmount = (business) => {
+    const demoOffer = getDemoOfferDetails(business);
+    return Math.max(49, Math.round(Number(demoOffer.amount || 0) * 0.35));
+};
+
+const createAppointmentMessage = ({ business, scheduledAt, durationMinutes, note, price = 0, createdByRole, createdByName, status = 'proposed' }) => {
+    return {
+        type: 'appointment',
+        sender: createdByRole === 'betrieb' ? 'business' : 'customer',
+        author: createdByName,
+        appointmentId: `appointment-${Date.now()}-${Math.round(Math.random() * 1000)}`,
+        businessName: business.name,
+        scheduledAt,
+        durationMinutes: Number(durationMinutes || 0),
+        note,
+        price: Math.max(0, Number(price || 0)),
+        status,
+        createdByRole,
+        createdByName,
+        timestamp: new Date().toISOString()
+    };
+};
+
+const createAppointmentOfferMessage = ({ business, appointment, amount = Number(appointment.price || 0) }) => {
+    const normalizedAmount = Math.max(0, Number(amount || 0));
+
+    return {
+        type: 'offer',
+        sender: 'business',
+        author: business.name,
+        offerId: `offer-${Date.now()}`,
+        linkedAppointmentId: appointment.appointmentId,
+        title: `Terminreservierung ${formatAppointmentDateTime(appointment.scheduledAt)}`,
+        description: appointment.note
+            ? `Bestaetigter Termin. Hinweis: ${appointment.note}`
+            : 'Bestaetigter Vor-Ort-Termin inklusive Reservierung ueber den Direktchat.',
+        amount: normalizedAmount,
+        status: 'open',
+        amountPaid: 0,
+        paymentMethod: '',
+        timestamp: new Date().toISOString()
+    };
+};
+
+const updateAppointmentMessage = (appointmentId, transform, options = {}) => {
+    const businessName = options.businessName || activeChatBusiness?.name;
+    const scope = options.scope || getCurrentChatScope();
+
+    if (!businessName) {
+        return null;
+    }
+
+    let updatedAppointment = null;
+    const updatedThread = getChatThread(businessName, scope).map((message) => {
+        if (message.type === 'appointment' && message.appointmentId === appointmentId) {
+            updatedAppointment = transform(message);
+            return updatedAppointment;
+        }
+
+        return message;
+    });
+
+    if (!updatedAppointment) {
+        return null;
+    }
+
+    saveChatThread(businessName, updatedThread, { scope });
+    return updatedAppointment;
+};
+
+const getLinkedOfferForAppointment = (appointment, businessName = activeChatBusiness?.name, scope = getCurrentChatScope()) => {
+    if (!appointment?.linkedOfferId || !businessName) {
+        return null;
+    }
+
+    return getChatThread(businessName, scope).find((message) => {
+        return message.type === 'offer' && message.offerId === appointment.linkedOfferId;
+    }) || null;
+};
+
+const getAppointmentStateClass = (appointment, linkedOffer = getLinkedOfferForAppointment(appointment)) => {
+    if (linkedOffer?.status === 'paid') {
+        return 'paid';
+    }
+
+    if (appointment.status === 'declined') {
+        return 'declined';
+    }
+
+    if (linkedOffer && ['partial', 'pending', 'checkout'].includes(linkedOffer.status)) {
+        return 'pending';
+    }
+
+    if (appointment.status === 'accepted') {
+        return 'accepted';
+    }
+
+    return 'proposed';
+};
+
+const getAppointmentStatusLabel = (appointment, linkedOffer = getLinkedOfferForAppointment(appointment)) => {
+    if (linkedOffer?.status === 'paid') {
+        return 'Bezahlt';
+    }
+
+    if (linkedOffer?.status === 'partial') {
+        return 'Teilweise bezahlt';
+    }
+
+    if (linkedOffer?.status === 'pending') {
+        return 'Wartet auf Zahlung';
+    }
+
+    if (linkedOffer?.status === 'checkout') {
+        return 'Checkout offen';
+    }
+
+    if (appointment.status === 'declined') {
+        return 'Abgelehnt';
+    }
+
+    if (appointment.status === 'accepted') {
+        return 'Bestaetigt';
+    }
+
+    return 'Vorgeschlagen';
+};
+
+const getAppointmentStatusNote = (appointment, linkedOffer = getLinkedOfferForAppointment(appointment)) => {
+    if (appointment.status === 'declined') {
+        return appointment.createdByRole === 'betrieb'
+            ? 'Der Terminvorschlag wurde auf Kundenseite abgelehnt.'
+            : 'Der Betrieb hat diesen Terminvorschlag abgelehnt.';
+    }
+
+    if (linkedOffer?.status === 'paid') {
+        return `${formatCurrency(linkedOffer.amount)} wurden bezahlt. Der Termin ist damit verbindlich bestaetigt.`;
+    }
+
+    if (linkedOffer?.status === 'partial') {
+        return `${formatCurrency(getPaidAmount(linkedOffer))} wurden bereits bezahlt. Restbetrag: ${formatCurrency(getOutstandingAmount(linkedOffer))}.`;
+    }
+
+    if (linkedOffer?.status === 'pending') {
+        return `Termin bestaetigt. Die Zahlung ueber ${formatCurrency(linkedOffer.amount)} wurde angelegt und wartet noch auf Abschluss.`;
+    }
+
+    if (linkedOffer?.status === 'checkout') {
+        return `Der Termin wurde bestaetigt. Die Zahlung ueber ${getPaymentMethodLabel(linkedOffer.paymentMethod)} ist gerade im Checkout offen.`;
+    }
+
+    if (appointment.status === 'accepted') {
+        return appointment.price > 0
+            ? `Termin bestaetigt. Die Reservierung von ${formatCurrency(appointment.price)} kann direkt im Chat bezahlt werden.`
+            : 'Termin wurde im Direktchat bestaetigt.';
+    }
+
+    return appointment.createdByRole === 'betrieb'
+        ? 'Der Betrieb hat einen konkreten Termin in den Chat gelegt.'
+        : 'Der Terminvorschlag wurde an den Betrieb geschickt.';
+};
+
+const renderAppointmentActions = (appointment) => {
+    const actor = getActiveChatActor();
+    const linkedOffer = getLinkedOfferForAppointment(appointment);
+    const actions = [];
+
+    if (appointment.status === 'proposed' && actor.role !== appointment.createdByRole) {
+        actions.push(`<button type="button" class="btn btn-primary" data-appointment-accept="${escapeHtml(appointment.appointmentId)}"><i class="fas fa-calendar-check"></i> Termin annehmen</button>`);
+        actions.push(`<button type="button" class="btn btn-secondary chat-offer-action-danger" data-appointment-decline="${escapeHtml(appointment.appointmentId)}"><i class="fas fa-calendar-xmark"></i> Ablehnen</button>`);
+    }
+
+    if (appointment.status === 'accepted' && linkedOffer && !['paid', 'cancelled'].includes(linkedOffer.status) && actor.role !== 'betrieb') {
+        actions.push(`<button type="button" class="btn btn-secondary" data-offer-id="${escapeHtml(linkedOffer.offerId)}"><i class="fas fa-credit-card"></i> Jetzt bezahlen</button>`);
+    }
+
+    return actions.join('');
+};
+
+const seedAppointmentDefaults = () => {
+    const nextHour = new Date();
+    nextHour.setMinutes(0, 0, 0);
+    nextHour.setHours(nextHour.getHours() + 2);
+
+    if (appointmentDate && !appointmentDate.value) {
+        appointmentDate.value = nextHour.toISOString().slice(0, 10);
+    }
+
+    if (appointmentTime && !appointmentTime.value) {
+        appointmentTime.value = `${String(nextHour.getHours()).padStart(2, '0')}:00`;
+    }
+
+    if (appointmentDuration && !appointmentDuration.value) {
+        appointmentDuration.value = '60';
+    }
+};
+
+const resetAppointmentComposer = () => {
+    if (appointmentDate) {
+        appointmentDate.value = '';
+    }
+
+    if (appointmentTime) {
+        appointmentTime.value = '';
+    }
+
+    if (appointmentDuration) {
+        appointmentDuration.value = '60';
+    }
+
+    if (appointmentPrice) {
+        appointmentPrice.value = '';
+    }
+
+    if (appointmentNote) {
+        appointmentNote.value = '';
+    }
+};
+
+const setAppointmentPanelOpen = (isOpen) => {
+    if (!appointmentPanel) {
+        return;
+    }
+
+    appointmentPanel.classList.toggle('is-hidden', !isOpen);
+    appointmentToggle?.setAttribute('aria-expanded', String(isOpen));
+
+    if (isOpen) {
+        seedAppointmentDefaults();
+        window.setTimeout(() => {
+            appointmentDate?.focus();
+        }, 80);
+    }
+};
+
+const updateAppointmentComposer = () => {
+    const actor = getActiveChatActor();
+    const isBusinessActor = actor.role === 'betrieb';
+
+    appointmentPriceField?.classList.toggle('is-hidden', !isBusinessActor);
+
+    if (appointmentToggle) {
+        appointmentToggle.innerHTML = isBusinessActor
+            ? '<i class="fas fa-calendar-plus"></i> Termin mit Preis senden'
+            : '<i class="fas fa-calendar-plus"></i> Terminvorschlag senden';
+    }
+
+    if (appointmentHelper) {
+        appointmentHelper.textContent = isBusinessActor
+            ? 'Betriebe koennen hier konkrete Termine und eine zahlbare Reservierung in den Chat legen.'
+            : 'Kunden koennen hier konkrete Terminfenster anfragen. Die Bestaetigung und Zahlung laufen danach direkt im Chat.';
+    }
+};
+
+const simulateBusinessAppointmentResponse = (appointment, business = activeChatBusiness) => {
+    if (!business) {
+        return;
+    }
+
+    const currentThread = getChatThread(business.name);
+    const existingAppointment = currentThread.find((message) => {
+        return message.type === 'appointment' && message.appointmentId === appointment.appointmentId;
+    });
+
+    if (!existingAppointment || existingAppointment.status !== 'proposed') {
+        return;
+    }
+
+    const quotedAmount = existingAppointment.price || getSuggestedAppointmentAmount(business);
+    const offerMessage = createAppointmentOfferMessage({
+        business,
+        appointment: {
+            ...existingAppointment,
+            price: quotedAmount
+        },
+        amount: quotedAmount
+    });
+    const now = new Date().toISOString();
+    const updatedThread = currentThread.map((message) => {
+        if (message.type === 'appointment' && message.appointmentId === appointment.appointmentId) {
+            return {
+                ...message,
+                status: 'accepted',
+                acceptedAt: now,
+                acceptedByRole: 'betrieb',
+                acceptedByName: business.name,
+                price: quotedAmount,
+                linkedOfferId: offerMessage.offerId
+            };
+        }
+
+        return message;
+    });
+
+    updatedThread.push({
+        sender: 'business',
+        author: business.name,
+        text: `Wir haben den Termin am ${formatAppointmentDateTime(existingAppointment.scheduledAt)} bestaetigt. Die Reservierung kannst du jetzt direkt hier im Chat bezahlen.`,
+        timestamp: now
+    });
+    updatedThread.push(offerMessage);
+    saveChatThread(business.name, updatedThread);
+
+    if (contractorChatStatus && activeChatBusiness?.name === business.name) {
+        contractorChatStatus.textContent = `Termin fuer ${business.name} wurde bestaetigt und zur Zahlung freigegeben.`;
+    }
+
+    if (activeChatBusiness?.name === business.name) {
+        renderChatThread();
+    }
 };
 
 const toPdfText = (value) => {
@@ -1034,6 +1412,45 @@ const renderChatThread = () => {
 
     contractorChatMessages.innerHTML = messages.length
         ? messages.map((message) => {
+            if (message.type === 'appointment') {
+                const linkedOffer = getLinkedOfferForAppointment(message);
+                const appointmentActions = renderAppointmentActions(message);
+
+                return `
+                    <article class="chat-message is-${message.sender}" data-appointment-card="${escapeHtml(message.appointmentId)}">
+                        <div class="chat-message-meta">
+                            <strong>${escapeHtml(message.author)}</strong>
+                            <span>${formatChatTime(message.timestamp)}</span>
+                        </div>
+                        <div class="chat-appointment-card is-${getAppointmentStateClass(message, linkedOffer)}">
+                            <div class="chat-appointment-topline">Termin im Direktchat</div>
+                            <h3>${escapeHtml(formatAppointmentDateTime(message.scheduledAt))}</h3>
+                            <p>${escapeHtml(message.note || 'Terminabstimmung direkt zwischen Kunde und Betrieb ueber Nailit.')}</p>
+                            <div class="chat-appointment-footer">
+                                <div>
+                                    <span class="chat-offer-label">Status</span>
+                                    <strong>${escapeHtml(getAppointmentStatusLabel(message, linkedOffer))}</strong>
+                                </div>
+                                <div>
+                                    <span class="chat-offer-label">Dauer</span>
+                                    <strong>${escapeHtml(formatDurationMinutes(message.durationMinutes))}</strong>
+                                </div>
+                                <div>
+                                    <span class="chat-offer-label">Preis</span>
+                                    <strong>${message.price > 0 ? escapeHtml(formatCurrency(message.price)) : 'Vor Ort'}</strong>
+                                </div>
+                                <div>
+                                    <span class="chat-offer-label">Erstellt von</span>
+                                    <strong>${escapeHtml(message.createdByRole === 'betrieb' ? 'Betrieb' : 'Kunde')}</strong>
+                                </div>
+                            </div>
+                            <div class="chat-appointment-note">${escapeHtml(getAppointmentStatusNote(message, linkedOffer))}</div>
+                            ${appointmentActions ? `<div class="chat-offer-actions">${appointmentActions}</div>` : ''}
+                        </div>
+                    </article>
+                `;
+            }
+
             if (message.type === 'offer') {
                 return `
                     <article class="chat-message is-${message.sender}" data-offer-card="${escapeHtml(message.offerId)}">
@@ -1072,24 +1489,23 @@ const renderChatThread = () => {
 
             return `
                 <article class="chat-message is-${message.sender}">
-                    <div class="chat-message-meta">
-                        <strong>${escapeHtml(message.author)}</strong>
-                        <span>${formatChatTime(message.timestamp)}</span>
+                    <div class="chat-message-bubble">
+                        <div class="chat-message-meta">
+                            <strong>${escapeHtml(message.author)}</strong>
+                            <span>${formatChatTime(message.timestamp)}</span>
+                        </div>
+                        <div class="chat-message-text">${escapeHtml(message.text)}</div>
                     </div>
-                    <div class="chat-message-bubble">${escapeHtml(message.text)}</div>
                 </article>
             `;
         }).join('')
-        : '<div class="contractor-chat-empty">Noch keine Nachrichten. Starte den Chat direkt ueber Nailit.</div>';
+        : '<div class="contractor-chat-empty">Noch keine Nachrichten im Direktchat.</div>';
 
     contractorChatMessages.scrollTop = contractorChatMessages.scrollHeight;
 };
 
 const openContractorChat = (business) => {
-    const session = getSession();
-    const chatIdentity = session?.role === 'kunde'
-        ? session.name
-        : 'Gast';
+    const actor = getActiveChatActor();
 
     activeChatBusiness = business;
 
@@ -1098,16 +1514,34 @@ const openContractorChat = (business) => {
     }
 
     if (contractorChatSubtitle) {
-        contractorChatSubtitle.textContent = `${business.trade} in ${business.city}. Schreibe dem Betrieb direkt ueber die Plattform.`;
+        contractorChatSubtitle.textContent = `${business.trade} in ${business.city}. Stimme Termine und Zahlungen direkt im Plattform-Chat ab.`;
     }
 
     if (contractorChatStatus) {
-        contractorChatStatus.textContent = `Du schreibst als ${chatIdentity}. Nachrichten werden in dieser Demo lokal gespeichert.`;
+        contractorChatStatus.textContent = actor.role === 'betrieb'
+            ? `Du schreibst als Betrieb ${actor.name}. Lege Termine und zahlbare Reservierungen direkt in den Chat.`
+            : `Du schreibst als ${actor.name}. Nachrichten, Termine und Zahlungen werden in dieser Demo lokal gespeichert.`;
     }
 
+    updateAppointmentComposer();
+    setAppointmentPanelOpen(false);
+    resetAppointmentComposer();
+
     contractorChatModal?.classList.remove('is-hidden');
+    if (contractorChatModal) {
+        contractorChatModal.style.display = 'grid';
+        contractorChatModal.setAttribute('aria-hidden', 'false');
+    }
+
+    if (isContractorsPage) {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.hash = 'direct-chat';
+        window.history.replaceState({}, '', nextUrl.toString());
+    }
+
     syncModalBodyState();
     renderChatThread();
+    startLiveChatThreadSync(business.name);
     void syncChatThreadFromServer(business.name).then(() => {
         if (activeChatBusiness?.name === business.name) {
             renderChatThread();
@@ -1119,9 +1553,85 @@ const openContractorChat = (business) => {
     }, 200);
 };
 
+window.openContractorChat = openContractorChat;
+
+const openDirectChatForBusiness = ({ name = '', city = 'Deutschland', trade = 'Handwerk' } = {}) => {
+    if (!name) {
+        return;
+    }
+
+    const matchingBusiness = findBusinessRecord(name);
+    const nextBusiness = matchingBusiness || {
+        name,
+        city,
+        trade
+    };
+
+    if (!isDirectChatPage) {
+        const targetUrl = new URL('direct-chat.html', window.location.href);
+        targetUrl.searchParams.set('chatBusiness', nextBusiness.name);
+        targetUrl.searchParams.set('chatCity', nextBusiness.city || city || 'Deutschland');
+        targetUrl.searchParams.set('chatTrade', nextBusiness.trade || trade || 'Handwerk');
+        targetUrl.searchParams.set('scope', DIRECT_CHAT_SCOPE);
+        window.location.href = targetUrl.toString();
+        return;
+    }
+
+    const nextUrl = new URL(window.location.href);
+    nextUrl.searchParams.set('chatBusiness', nextBusiness.name);
+    nextUrl.searchParams.set('chatCity', nextBusiness.city || city || 'Deutschland');
+    nextUrl.searchParams.set('chatTrade', nextBusiness.trade || trade || 'Handwerk');
+    nextUrl.searchParams.set('scope', DIRECT_CHAT_SCOPE);
+    window.history.replaceState({}, '', nextUrl.toString());
+
+    openContractorChat(nextBusiness);
+};
+
+window.openDirectChatForBusiness = openDirectChatForBusiness;
+
+const getDirectChatHref = ({ name = '', city = 'Deutschland', trade = 'Handwerk' } = {}) => {
+    const targetUrl = new URL('direct-chat.html', window.location.href);
+
+    if (name) {
+        targetUrl.searchParams.set('chatBusiness', name);
+    }
+
+    if (city) {
+        targetUrl.searchParams.set('chatCity', city);
+    }
+
+    if (trade) {
+        targetUrl.searchParams.set('chatTrade', trade);
+    }
+
+    targetUrl.searchParams.set('scope', DIRECT_CHAT_SCOPE);
+
+    return `${targetUrl.pathname}${targetUrl.search}`;
+};
+
 const closeContractorChat = () => {
     closePaymentModal();
+    stopLiveChatThreadSync();
     contractorChatModal?.classList.add('is-hidden');
+    if (contractorChatModal) {
+        contractorChatModal.style.display = '';
+        contractorChatModal.setAttribute('aria-hidden', 'true');
+    }
+
+    if (isDirectChatPage) {
+        window.location.href = 'contractors.html';
+        return;
+    }
+
+    if (isContractorsPage) {
+        const nextUrl = new URL(window.location.href);
+        nextUrl.searchParams.delete('chatBusiness');
+        nextUrl.searchParams.delete('chatCity');
+        nextUrl.searchParams.delete('chatTrade');
+        nextUrl.searchParams.delete('scope');
+        window.history.replaceState({}, '', nextUrl.toString());
+    }
+
     syncModalBodyState();
 };
 
@@ -1174,7 +1684,25 @@ const normalizeChatScope = (scopeValue) => {
     return normalizeSearchText(scopeValue || 'guest').replace(/\s+/g, '-');
 };
 
+const getRequestedChatScope = () => {
+    const params = new URLSearchParams(window.location.search);
+    return normalizeChatScope(params.get('scope') || '');
+};
+
 const getCurrentChatScope = () => {
+    const requestedScope = getRequestedChatScope();
+
+    if (requestedScope) {
+        return requestedScope;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const businessName = String(params.get('chatBusiness') || '').trim();
+
+    if (businessName && (isDirectChatPage || isContractorsPage)) {
+        return DIRECT_CHAT_SCOPE;
+    }
+
     const session = getSession();
     return normalizeChatScope(session?.email || 'guest');
 };
@@ -1237,13 +1765,69 @@ const saveChatThread = (businessName, messages, options = {}) => {
     }
 };
 
+const stopLiveChatThreadSync = () => {
+    if (liveChatEventSource) {
+        liveChatEventSource.close();
+    }
+
+    if (liveChatPollInterval) {
+        window.clearInterval(liveChatPollInterval);
+    }
+
+    liveChatEventSource = null;
+    liveChatSubscriptionKey = '';
+    liveChatPollInterval = null;
+};
+
+const getChatMessageIdentity = (message) => {
+    if (message?.appointmentId) {
+        return `appointment:${message.appointmentId}`;
+    }
+
+    if (message?.offerId) {
+        return `offer:${message.offerId}`;
+    }
+
+    return [
+        message?.type || 'text',
+        message?.sender || '',
+        message?.author || '',
+        message?.text || '',
+        message?.timestamp || ''
+    ].join('::');
+};
+
+const mergeChatThreads = (localMessages = [], serverMessages = []) => {
+    const mergedMessages = new Map();
+
+    [...serverMessages, ...localMessages].forEach((message) => {
+        if (!message || typeof message !== 'object') {
+            return;
+        }
+
+        mergedMessages.set(getChatMessageIdentity(message), message);
+    });
+
+    return Array.from(mergedMessages.values()).sort((left, right) => {
+        const leftTime = new Date(left.timestamp || 0).getTime();
+        const rightTime = new Date(right.timestamp || 0).getTime();
+        return leftTime - rightTime;
+    });
+};
+
 const syncChatThreadFromServer = async (businessName, scope = getCurrentChatScope()) => {
     const serverMessages = await fetchServerChatThread(businessName, scope);
     const localMessages = getChatThread(businessName, scope);
 
     if (Array.isArray(serverMessages) && serverMessages.length) {
-        saveChatThreadLocally(businessName, serverMessages, scope);
-        return serverMessages;
+        const mergedMessages = mergeChatThreads(localMessages, serverMessages);
+        saveChatThreadLocally(businessName, mergedMessages, scope);
+
+        if (mergedMessages.length !== serverMessages.length) {
+            void persistChatThreadToServer(businessName, mergedMessages, scope);
+        }
+
+        return mergedMessages;
     }
 
     if (Array.isArray(serverMessages) && !serverMessages.length && localMessages.length) {
@@ -1251,6 +1835,72 @@ const syncChatThreadFromServer = async (businessName, scope = getCurrentChatScop
     }
 
     return localMessages;
+};
+
+const startLiveChatThreadSync = (businessName, scope = getCurrentChatScope()) => {
+    if (!businessName || typeof window.EventSource !== 'function') {
+        return;
+    }
+
+    const subscriptionKey = `${scope}::${businessName}`;
+
+    if (liveChatSubscriptionKey === subscriptionKey && liveChatEventSource) {
+        return;
+    }
+
+    stopLiveChatThreadSync();
+
+    const streamUrl = `/api/chat-threads/stream?scope=${encodeURIComponent(scope)}&business=${encodeURIComponent(businessName)}`;
+    const eventSource = new EventSource(streamUrl);
+
+    eventSource.addEventListener('thread', (event) => {
+        let payload = null;
+
+        try {
+            payload = JSON.parse(String(event.data || '{}'));
+        } catch {
+            return;
+        }
+
+        if (!payload?.businessName || !Array.isArray(payload.messages)) {
+            return;
+        }
+
+        const resolvedScope = normalizeChatScope(payload.scope || scope);
+        const mergedMessages = mergeChatThreads(getChatThread(payload.businessName, resolvedScope), payload.messages);
+        saveChatThreadLocally(payload.businessName, mergedMessages, resolvedScope);
+
+        if (activeChatBusiness?.name === payload.businessName && getCurrentChatScope() === resolvedScope) {
+            renderChatThread();
+        }
+    });
+
+    eventSource.onerror = () => {
+        if (activeChatBusiness?.name === businessName && contractorChatStatus) {
+            contractorChatStatus.textContent = 'Live-Sync wird neu verbunden...';
+        }
+
+        void syncChatThreadFromServer(businessName, scope).then(() => {
+            if (activeChatBusiness?.name === businessName) {
+                renderChatThread();
+            }
+        });
+    };
+
+    liveChatEventSource = eventSource;
+    liveChatSubscriptionKey = subscriptionKey;
+
+    liveChatPollInterval = window.setInterval(() => {
+        if (document.hidden) {
+            return;
+        }
+
+        void syncChatThreadFromServer(businessName, scope).then(() => {
+            if (activeChatBusiness?.name === businessName && getCurrentChatScope() === scope) {
+                renderChatThread();
+            }
+        });
+    }, 2000);
 };
 
 const formatChatTime = (value) => {
@@ -1392,6 +2042,129 @@ const findBusinessRecord = (businessName) => {
             trade
         }));
     }).find((business) => business.name === businessName) || null;
+};
+
+const getDirectChatFallbackBusiness = () => {
+    const params = new URLSearchParams(window.location.search);
+    const businessName = String(params.get('chatBusiness') || '').trim();
+    const city = String(params.get('chatCity') || 'Berlin').trim();
+    const trade = String(params.get('chatTrade') || 'Handwerk').trim();
+
+    if (businessName) {
+        return findBusinessRecord(businessName) || {
+            name: businessName,
+            city,
+            trade
+        };
+    }
+
+    if (!isDirectChatPage) {
+        return null;
+    }
+
+    return {
+        name: 'Nailit Service-Team',
+        city,
+        trade
+    };
+};
+
+const ensureActiveChatBusiness = () => {
+    if (activeChatBusiness) {
+        return activeChatBusiness;
+    }
+
+    const fallbackBusiness = getDirectChatFallbackBusiness();
+
+    if (!fallbackBusiness) {
+        return null;
+    }
+
+    openContractorChat(fallbackBusiness);
+    return fallbackBusiness;
+};
+
+const autoResizeChatInput = () => {
+    if (!contractorChatInput) {
+        return;
+    }
+
+    contractorChatInput.style.height = 'auto';
+    contractorChatInput.style.height = `${Math.min(contractorChatInput.scrollHeight, 140)}px`;
+};
+
+const clearChatInputs = () => {
+    if (contractorChatInput) {
+        contractorChatInput.value = '';
+        autoResizeChatInput();
+    }
+};
+
+const submitDirectChatMessage = () => {
+    const currentBusiness = activeChatBusiness || ensureActiveChatBusiness();
+
+    if (!currentBusiness) {
+        return;
+    }
+
+    const actor = getActiveChatActor();
+    const text = String(contractorChatInput?.value || '').trim();
+
+    if (!text) {
+        contractorChatInput?.focus();
+        return;
+    }
+
+    const customerMessage = {
+        sender: actor.sender,
+        author: actor.name,
+        text,
+        timestamp: new Date().toISOString()
+    };
+
+    const nextThread = [...ensureChatThread(currentBusiness), customerMessage];
+    saveChatThread(currentBusiness.name, nextThread);
+    clearChatInputs();
+
+    if (actor.role === 'betrieb') {
+        if (contractorChatStatus) {
+            contractorChatStatus.textContent = `Nachricht von ${actor.name} wurde an den Kunden im Direktchat gesendet.`;
+        }
+
+        renderChatThread();
+        return;
+    }
+
+    if (contractorChatStatus) {
+        contractorChatStatus.textContent = `${currentBusiness.name} antwortet ueber Nailit...`;
+    }
+
+    renderChatThread();
+
+    window.setTimeout(() => {
+        const currentThread = getChatThread(currentBusiness.name);
+        const updatedThread = [
+            ...currentThread,
+            {
+                sender: 'business',
+                author: currentBusiness.name,
+                text: createBusinessReply(currentBusiness, { name: actor.name }),
+                timestamp: new Date().toISOString()
+            }
+        ];
+
+        if (!hasOpenOffer(currentThread)) {
+            updatedThread.push(createOfferMessage(currentBusiness));
+        }
+
+        saveChatThread(currentBusiness.name, updatedThread);
+
+        if (contractorChatStatus) {
+            contractorChatStatus.textContent = `Du schreibst als ${actor.name}. Nachrichten werden in dieser Demo lokal gespeichert.`;
+        }
+
+        renderChatThread();
+    }, 550);
 };
 
 const scrollToOfferCard = (offerId) => {
@@ -1558,7 +2331,7 @@ const ensureChatThread = (business) => {
     const starterMessage = {
         sender: 'business',
         author: business.name,
-        text: `Willkommen im Nailit-Chat. Stelle hier direkt Fragen zu ${business.trade} in ${business.city} oder sende uns kurz dein Anliegen.`,
+        text: `Willkommen im Nailit-Chat. Schreibe hier direkt an ${business.name}, schlage Termine vor und klaere Preise oder Zahlungen direkt im Chat.`,
         timestamp: new Date().toISOString()
     };
 
@@ -1725,6 +2498,11 @@ const renderMatches = (trade) => {
         const businessAvailability = escapeHtml(business.availability);
         const businessScore = escapeHtml(business.score);
         const businessTrade = escapeHtml(trade);
+        const directChatHref = escapeHtml(getDirectChatHref({
+            name: business.name,
+            city: business.city,
+            trade
+        }));
 
         return `
             <article class="match-card">
@@ -1743,7 +2521,7 @@ const renderMatches = (trade) => {
                 ${renderAvailabilityIndicator(business.availability)}
                 <div class="match-card-actions">
                     <button type="button" class="btn btn-secondary">Profil ansehen</button>
-                    <button type="button" class="btn btn-primary contractor-chat-btn" data-chat-business="${businessName}" data-chat-city="${businessCity}" data-chat-trade="${businessTrade}"><i class="fas fa-comments"></i> Direkt chatten</button>
+                    <a href="${directChatHref}" class="btn btn-primary contractor-chat-btn" data-chat-business="${businessName}" data-chat-city="${businessCity}" data-chat-trade="${businessTrade}"><i class="fas fa-comments"></i> Direkt chatten</a>
                 </div>
             </article>
         `;
@@ -1774,6 +2552,11 @@ const setAnalysisResult = (result, hasFile) => {
             const businessAvailability = escapeHtml(business.availability);
             const businessScore = escapeHtml(business.score);
             const businessTrade = escapeHtml(result.trade);
+            const directChatHref = escapeHtml(getDirectChatHref({
+                name: business.name,
+                city: business.city,
+                trade: result.trade
+            }));
 
             return `
                 <article class="match-card">
@@ -1792,7 +2575,7 @@ const setAnalysisResult = (result, hasFile) => {
                     ${renderAvailabilityIndicator(business.availability)}
                     <div class="match-card-actions">
                         <button type="button" class="btn btn-secondary">Profil ansehen</button>
-                        <button type="button" class="btn btn-primary contractor-chat-btn" data-chat-business="${businessName}" data-chat-city="${businessCity}" data-chat-trade="${businessTrade}"><i class="fas fa-comments"></i> Direkt chatten</button>
+                        <a href="${directChatHref}" class="btn btn-primary contractor-chat-btn" data-chat-business="${businessName}" data-chat-city="${businessCity}" data-chat-trade="${businessTrade}"><i class="fas fa-comments"></i> Direkt chatten</a>
                     </div>
                 </article>
             `;
@@ -1907,6 +2690,26 @@ const getSearchTerms = (value) => {
     return Array.from(terms);
 };
 
+const getInferredTradesFromQuery = (value) => {
+    const searchTerms = getSearchTerms(value);
+    if (!searchTerms.length) {
+        return [];
+    }
+
+    return Object.keys(TRADE_LABELS).filter((trade) => {
+        const normalizedTrade = normalizeSearchText(trade);
+        const normalizedLabel = normalizeSearchText(getTradeLabel(trade));
+        const aliases = SEARCH_ALIASES[normalizedTrade] || [];
+        const normalizedAliases = aliases.map((alias) => normalizeSearchText(alias));
+
+        return searchTerms.some((term) => {
+            return term === normalizedTrade
+                || term === normalizedLabel
+                || normalizedAliases.includes(term);
+        });
+    });
+};
+
 const FILTER_VALUE_MAP = {
     trade: {
         sanitar: 'sanitaer',
@@ -1981,6 +2784,11 @@ const renderContractorDirectory = () => {
         const businessTags = escapeHtml(`${business.trade} ${business.specialty} ${business.city} ${business.distance} ${business.availability}`);
         const businessScore = escapeHtml(business.score || 'Top Match');
         const delayClass = `delay-${(index % 4) + 1}`;
+        const directChatHref = escapeHtml(getDirectChatHref({
+            name: business.name,
+            city: business.city,
+            trade: getTradeLabel(business.trade)
+        }));
 
         return `
             <article class="contractor-card reveal ${delayClass}" data-name="${businessName}" data-trade="${escapeHtml(businessTrade)}" data-city="${escapeHtml(businessCityValue)}" data-tags="${businessTags}">
@@ -1996,7 +2804,7 @@ const renderContractorDirectory = () => {
                 ${renderAvailabilityIndicator(business.availability)}
                 <div class="contractor-actions">
                     <a href="#" class="btn btn-secondary">Profil ansehen</a>
-                    <button type="button" class="btn btn-primary contractor-chat-btn" data-chat-business="${businessName}" data-chat-city="${businessCity}" data-chat-trade="${businessTradeLabel}"><i class="fas fa-comments"></i> Direkt chatten</button>
+                    <a href="${directChatHref}" class="btn btn-primary contractor-chat-btn" data-chat-business="${businessName}" data-chat-city="${businessCity}" data-chat-trade="${businessTradeLabel}"><i class="fas fa-comments"></i> Direkt chatten</a>
                 </div>
             </article>
         `;
@@ -2053,6 +2861,20 @@ const applyContractorFiltersFromUrl = () => {
     updateContractorSearch();
 };
 
+const applyDirectChatFromUrl = () => {
+    if (!isContractorsPage && !isDirectChatPage) {
+        return;
+    }
+
+    const business = getDirectChatFallbackBusiness();
+
+    if (!business) {
+        return;
+    }
+
+    openContractorChat(business);
+};
+
 const runHeroManualSearch = (query) => {
     navigateToContractorsPage({ query });
 };
@@ -2064,6 +2886,7 @@ const updateContractorSearch = () => {
 
     const query = String(contractorSearchInput?.value || '').trim();
     const searchTerms = getSearchTerms(query);
+    const inferredTrades = getInferredTradesFromQuery(query);
     const trade = normalizeSearchText(contractorTradeFilter?.value || '');
     const city = normalizeSearchText(contractorCityFilter?.value || '');
 
@@ -2081,7 +2904,9 @@ const updateContractorSearch = () => {
         const cardTrade = normalizeSearchText(card.dataset.trade);
         const cardCity = normalizeSearchText(card.dataset.city);
 
-        const matchesQuery = !searchTerms.length || searchTerms.some((term) => searchableText.includes(term));
+        const matchesQuery = !searchTerms.length
+            || searchTerms.some((term) => searchableText.includes(term))
+            || inferredTrades.includes(cardTrade);
         const matchesTrade = !trade || cardTrade === trade;
         const matchesCity = !city || cardCity.includes(city);
         const isVisible = matchesQuery && matchesTrade && matchesCity;
@@ -2203,6 +3028,9 @@ if (!contractorCards.length && isContractorsPage && !document.getElementById('lo
     renderContractorDirectory();
 }
 applyContractorFiltersFromUrl();
+applyDirectChatFromUrl();
+window.addEventListener('load', applyDirectChatFromUrl);
+window.addEventListener('pageshow', applyDirectChatFromUrl);
 
 if (heroServiceInput) {
     heroServiceInput.addEventListener('input', syncHeroDescription);
@@ -2296,7 +3124,7 @@ document.addEventListener('click', (event) => {
 
     event.preventDefault();
 
-    openContractorChat({
+    openDirectChatForBusiness({
         name: trigger.dataset.chatBusiness,
         city: trigger.dataset.chatCity || 'Deutschland',
         trade: trigger.dataset.chatTrade || 'Handwerk'
@@ -2305,70 +3133,125 @@ document.addEventListener('click', (event) => {
 
 contractorChatForm?.addEventListener('submit', (event) => {
     event.preventDefault();
+    submitDirectChatMessage();
+});
 
-    if (!activeChatBusiness || !contractorChatInput) {
-        return;
+contractorChatInput?.addEventListener('input', () => {
+    autoResizeChatInput();
+});
+
+contractorChatInput?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        contractorChatForm?.requestSubmit();
     }
-
-    const session = getSession();
-    const senderName = session?.role === 'kunde' ? session.name : 'Gast';
-    const text = String(contractorChatInput.value || '').trim();
-
-    if (!text) {
-        contractorChatInput.focus();
-        return;
-    }
-
-    const customerMessage = {
-        sender: 'customer',
-        author: senderName,
-        text,
-        timestamp: new Date().toISOString()
-    };
-
-    const nextThread = [...ensureChatThread(activeChatBusiness), customerMessage];
-    saveChatThread(activeChatBusiness.name, nextThread);
-    contractorChatInput.value = '';
-
-    if (contractorChatStatus) {
-        contractorChatStatus.textContent = `${activeChatBusiness.name} antwortet ueber Nailit...`;
-    }
-
-    renderChatThread();
-
-    window.setTimeout(() => {
-        const currentThread = getChatThread(activeChatBusiness.name);
-        const updatedThread = [
-            ...currentThread,
-            {
-                sender: 'business',
-                author: activeChatBusiness.name,
-                text: createBusinessReply(activeChatBusiness, { name: senderName }),
-                timestamp: new Date().toISOString()
-            }
-        ];
-
-        if (!hasOpenOffer(currentThread)) {
-            updatedThread.push(createOfferMessage(activeChatBusiness));
-        }
-
-        saveChatThread(activeChatBusiness.name, updatedThread);
-
-        if (contractorChatStatus) {
-            contractorChatStatus.textContent = `Du schreibst als ${senderName}. Nachrichten werden in dieser Demo lokal gespeichert.`;
-        }
-
-        renderChatThread();
-    }, 550);
 });
 
 document.addEventListener('click', (event) => {
     const payTrigger = event.target.closest('[data-offer-id]');
+    const appointmentAcceptTrigger = event.target.closest('[data-appointment-accept]');
+    const appointmentDeclineTrigger = event.target.closest('[data-appointment-decline]');
     const invoiceTrigger = event.target.closest('[data-download-invoice]');
     const transferTrigger = event.target.closest('[data-copy-transfer]');
     const partialTrigger = event.target.closest('[data-offer-partial]');
     const completeTrigger = event.target.closest('[data-offer-complete]');
     const cancelTrigger = event.target.closest('[data-offer-cancel]');
+
+    if (appointmentAcceptTrigger && activeChatBusiness) {
+        event.preventDefault();
+
+        const actor = getActiveChatActor();
+        const appointmentMessage = getChatThread(activeChatBusiness.name).find((message) => {
+            return message.type === 'appointment' && message.appointmentId === appointmentAcceptTrigger.dataset.appointmentAccept;
+        });
+
+        if (!appointmentMessage) {
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const needsOffer = Number(appointmentMessage.price || 0) > 0 && !appointmentMessage.linkedOfferId;
+        const offerMessage = needsOffer
+            ? createAppointmentOfferMessage({
+                business: activeChatBusiness,
+                appointment: appointmentMessage,
+                amount: appointmentMessage.price
+            })
+            : null;
+        const updatedThread = getChatThread(activeChatBusiness.name).map((message) => {
+            if (message.type === 'appointment' && message.appointmentId === appointmentMessage.appointmentId) {
+                return {
+                    ...message,
+                    status: 'accepted',
+                    acceptedAt: now,
+                    acceptedByRole: actor.role,
+                    acceptedByName: actor.name,
+                    linkedOfferId: offerMessage?.offerId || message.linkedOfferId
+                };
+            }
+
+            return message;
+        });
+
+        updatedThread.push({
+            sender: actor.sender,
+            author: actor.name,
+            text: offerMessage
+                ? `Termin am ${formatAppointmentDateTime(appointmentMessage.scheduledAt)} wurde bestaetigt. Ich habe dir direkt die Reservierung zur Zahlung in den Chat gelegt.`
+                : `Termin am ${formatAppointmentDateTime(appointmentMessage.scheduledAt)} wurde bestaetigt.`,
+            timestamp: now
+        });
+
+        if (offerMessage) {
+            updatedThread.push(offerMessage);
+        }
+
+        saveChatThread(activeChatBusiness.name, updatedThread);
+
+        if (contractorChatStatus) {
+            contractorChatStatus.textContent = offerMessage
+                ? `Termin fuer ${activeChatBusiness.name} wurde bestaetigt. Die Zahlung kann jetzt direkt im Chat abgeschlossen werden.`
+                : `Termin fuer ${activeChatBusiness.name} wurde bestaetigt.`;
+        }
+
+        renderChatThread();
+        return;
+    }
+
+    if (appointmentDeclineTrigger && activeChatBusiness) {
+        event.preventDefault();
+
+        const actor = getActiveChatActor();
+        const declinedAppointment = updateAppointmentMessage(appointmentDeclineTrigger.dataset.appointmentDecline, (message) => ({
+            ...message,
+            status: 'declined',
+            declinedAt: new Date().toISOString(),
+            declinedByRole: actor.role,
+            declinedByName: actor.name
+        }));
+
+        if (declinedAppointment) {
+            const updatedThread = [
+                ...getChatThread(activeChatBusiness.name),
+                {
+                    sender: actor.sender,
+                    author: actor.name,
+                    text: `Der Terminvorschlag am ${formatAppointmentDateTime(declinedAppointment.scheduledAt)} wurde abgelehnt.`,
+                    timestamp: new Date().toISOString()
+                }
+            ];
+
+            saveChatThread(activeChatBusiness.name, updatedThread);
+
+            if (contractorChatStatus) {
+                contractorChatStatus.textContent = `Terminvorschlag fuer ${activeChatBusiness.name} wurde abgelehnt.`;
+            }
+
+            renderChatThread();
+        }
+
+        return;
+    }
 
     if (invoiceTrigger && activeChatBusiness) {
         event.preventDefault();
@@ -2582,6 +3465,84 @@ paymentForm?.addEventListener('submit', async (event) => {
     });
 });
 
+appointmentToggle?.addEventListener('click', () => {
+    const shouldOpen = appointmentPanel?.classList.contains('is-hidden');
+
+    if (shouldOpen) {
+        seedAppointmentDefaults();
+    }
+
+    setAppointmentPanelOpen(Boolean(shouldOpen));
+});
+
+appointmentCancel?.addEventListener('click', () => {
+    setAppointmentPanelOpen(false);
+    resetAppointmentComposer();
+});
+
+appointmentSend?.addEventListener('click', () => {
+    if (!activeChatBusiness) {
+        return;
+    }
+
+    const actor = getActiveChatActor();
+    const nextDate = String(appointmentDate?.value || '').trim();
+    const nextTime = String(appointmentTime?.value || '').trim();
+
+    if (!nextDate || !nextTime) {
+        if (contractorChatStatus) {
+            contractorChatStatus.textContent = 'Bitte waehle Datum und Uhrzeit fuer den Termin aus.';
+        }
+
+        return;
+    }
+
+    const scheduledAt = new Date(`${nextDate}T${nextTime}`);
+
+    if (Number.isNaN(scheduledAt.getTime())) {
+        if (contractorChatStatus) {
+            contractorChatStatus.textContent = 'Der Terminvorschlag konnte nicht verarbeitet werden.';
+        }
+
+        return;
+    }
+
+    const durationMinutes = Number(appointmentDuration?.value || 60);
+    const note = String(appointmentNote?.value || contractorChatInput?.value || '').trim();
+    const price = actor.role === 'betrieb'
+        ? Math.max(0, Number(appointmentPrice?.value || 0))
+        : 0;
+    const appointmentMessage = createAppointmentMessage({
+        business: activeChatBusiness,
+        scheduledAt: scheduledAt.toISOString(),
+        durationMinutes,
+        note,
+        price,
+        createdByRole: actor.role,
+        createdByName: actor.name
+    });
+    const nextThread = [...ensureChatThread(activeChatBusiness), appointmentMessage];
+
+    saveChatThread(activeChatBusiness.name, nextThread);
+    setAppointmentPanelOpen(false);
+    resetAppointmentComposer();
+
+    if (contractorChatStatus) {
+        contractorChatStatus.textContent = actor.role === 'betrieb'
+            ? `Terminangebot fuer ${activeChatBusiness.name} wurde in den Direktchat gestellt.`
+            : `${activeChatBusiness.name} prueft gerade deinen Terminvorschlag...`;
+    }
+
+    renderChatThread();
+
+    if (actor.role !== 'betrieb') {
+        const business = activeChatBusiness;
+        window.setTimeout(() => {
+            simulateBusinessAppointmentResponse(appointmentMessage, business);
+        }, 650);
+    }
+});
+
 aiDiagnoseClose?.addEventListener('click', closeAiDiagnoseModal);
 aiDiagnoseBackdrop?.addEventListener('click', closeAiDiagnoseModal);
 authModalClose?.addEventListener('click', closeAuthModal);
@@ -2617,6 +3578,34 @@ window.addEventListener('keydown', (event) => {
             goToHomepage();
         }
     }
+});
+
+window.addEventListener('beforeunload', () => {
+    stopLiveChatThreadSync();
+});
+
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden || !activeChatBusiness) {
+        return;
+    }
+
+    void syncChatThreadFromServer(activeChatBusiness.name).then(() => {
+        if (activeChatBusiness) {
+            renderChatThread();
+        }
+    });
+});
+
+window.addEventListener('focus', () => {
+    if (!activeChatBusiness) {
+        return;
+    }
+
+    void syncChatThreadFromServer(activeChatBusiness.name).then(() => {
+        if (activeChatBusiness) {
+            renderChatThread();
+        }
+    });
 });
 
 registerForm?.querySelectorAll('input[name="registerRole"]').forEach((field) => {
