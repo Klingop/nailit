@@ -20,6 +20,7 @@ const contractorEmptyState = document.getElementById('contractorEmptyState');
 const contractorsGrid = document.getElementById('contractorsGrid');
 let contractorCards = Array.from(document.querySelectorAll('.contractor-card'));
 const navAuthLinks = document.querySelectorAll('.nav-auth [data-auth-view]');
+const authEntryLinks = document.querySelectorAll('a[data-auth-view]');
 const authTabs = document.querySelectorAll('.auth-tab');
 const registerForm = document.getElementById('registerForm');
 const loginForm = document.getElementById('loginForm');
@@ -31,6 +32,7 @@ const registerSuccess = document.getElementById('registerSuccess');
 const registerError = document.getElementById('registerError');
 const loginSuccess = document.getElementById('loginSuccess');
 const loginError = document.getElementById('loginError');
+const authForgotLinks = document.querySelectorAll('.auth-forgot a');
 const aiDiagnoseModal = document.getElementById('ai-diagnose');
 const aiDiagnoseClose = document.getElementById('aiDiagnoseClose');
 const aiDiagnoseBackdrop = document.getElementById('aiDiagnoseBackdrop');
@@ -2380,6 +2382,57 @@ const setMessage = (element, message) => {
     element.textContent = message;
 };
 
+const showAppToast = (message, type = 'info') => {
+    const toastId = 'appToast';
+    let toast = document.getElementById(toastId);
+
+    if (!toast) {
+        toast = document.createElement('div');
+        toast.id = toastId;
+        toast.className = 'app-toast is-hidden';
+        document.body.appendChild(toast);
+    }
+
+    toast.textContent = message;
+    toast.classList.remove('is-hidden', 'is-success', 'is-error', 'is-info');
+    toast.classList.add(`is-${type}`, 'is-visible');
+
+    window.clearTimeout(showAppToast.dismissTimer);
+    showAppToast.dismissTimer = window.setTimeout(() => {
+        toast.classList.remove('is-visible');
+        toast.classList.add('is-hidden');
+    }, 2800);
+};
+
+showAppToast.dismissTimer = null;
+
+const getPostAuthTarget = (role) => {
+    if (role === 'betrieb') {
+        return 'direct-chat.html?scope=direct-shared';
+    }
+
+    return 'contractors.html';
+};
+
+const redirectAfterAuth = (session) => {
+    const target = getPostAuthTarget(session?.role);
+
+    if (!target) {
+        closeAuthModal();
+        return;
+    }
+
+    const targetUrl = new URL(target, window.location.href);
+    const currentUrl = new URL(window.location.href);
+
+    if (targetUrl.pathname === currentUrl.pathname && targetUrl.search === currentUrl.search) {
+        closeAuthModal();
+        return;
+    }
+
+    window.location.href = targetUrl.toString();
+};
+
 const setAuthView = (view) => {
     const isRegister = view !== 'login';
 
@@ -2417,6 +2470,42 @@ const openAuthSection = (view) => {
     }, 250);
 };
 
+const handleAuthTriggerClick = (event) => {
+    const trigger = event.target.closest('[data-auth-view], a[href="#accounts"]');
+
+    if (!trigger) {
+        return;
+    }
+
+    event.preventDefault();
+
+    const view = trigger.dataset.authView || 'login';
+
+    if (!accountsSection) {
+        const targetUrl = new URL('index.html', window.location.href);
+        targetUrl.hash = 'accounts';
+        targetUrl.searchParams.set('authView', view);
+        window.location.href = targetUrl.toString();
+        return;
+    }
+
+    openAuthSection(view);
+};
+
+const openAuthFromLocation = () => {
+    if (!accountsSection) {
+        return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const requestedView = params.get('authView');
+    const hashRequestsAuth = window.location.hash === '#accounts';
+
+    if (hashRequestsAuth || requestedView) {
+        openAuthSection(requestedView || 'login');
+    }
+};
+
 const updateRegisterRoleFields = () => {
     const selectedRole = registerForm?.querySelector('input[name="registerRole"]:checked');
     const isBusiness = selectedRole && selectedRole.value === 'betrieb';
@@ -2441,6 +2530,8 @@ const toggleMenu = () => {
     const isExpanded = hamburger.getAttribute('aria-expanded') === 'true';
     setMenuState(!isExpanded);
 };
+
+document.addEventListener('click', handleAuthTriggerClick, true);
 
 const revealOnScroll = () => {
     revealElements.forEach((element) => {
@@ -2951,6 +3042,19 @@ navAuthLinks.forEach((link) => {
     });
 });
 
+authEntryLinks.forEach((link) => {
+    link.addEventListener('click', (event) => {
+        const view = link.dataset.authView;
+
+        if (!view) {
+            return;
+        }
+
+        event.preventDefault();
+        openAuthSection(view);
+    });
+});
+
 authTabs.forEach((tab) => {
     tab.addEventListener('click', () => {
         setAuthView(tab.dataset.authView);
@@ -2970,6 +3074,7 @@ window.addEventListener('scroll', () => {
 window.addEventListener('scroll', revealOnScroll);
 revealOnScroll();
 updateAuthUi();
+openAuthFromLocation();
 
 if (issueMedia) {
     issueMedia.addEventListener('change', () => {
@@ -3617,7 +3722,7 @@ loadPaymentConfig();
 void processCheckoutReturn();
 
 if (registerForm) {
-    registerForm.addEventListener('submit', (event) => {
+    registerForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearMessages();
 
@@ -3625,12 +3730,13 @@ if (registerForm) {
         const role = formData.get('registerRole');
         const name = String(formData.get('registerName') || '').trim();
         const email = String(formData.get('registerEmail') || '').trim().toLowerCase();
+        const phone = String(formData.get('registerPhone') || '').trim();
         const password = String(formData.get('registerPassword') || '');
         const passwordRepeat = String(formData.get('registerPasswordRepeat') || '');
         const trade = String(formData.get('registerTrade') || '').trim();
         const radius = String(formData.get('registerRadius') || '').trim();
 
-        if (!role || !name || !email || !password) {
+        if (!role || !name || !email || !phone || !password) {
             setMessage(registerError, 'Bitte alle Pflichtfelder ausfuellen.');
             return;
         }
@@ -3650,43 +3756,65 @@ if (registerForm) {
             return;
         }
 
-        const accounts = getAccounts();
-        const existingAccount = accounts.find((account) => account.email === email);
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    role,
+                    name,
+                    email,
+                    phone,
+                    password,
+                    trade,
+                    radius
+                })
+            });
 
-        if (existingAccount) {
-            setMessage(registerError, 'Mit dieser E-Mail existiert bereits ein Konto.');
-            setAuthView('login');
-            loginForm.querySelector('#loginEmail').value = email;
-            return;
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                setMessage(registerError, payload.error || 'Registrierung fehlgeschlagen. Bitte Eingaben pruefen.');
+
+                if (response.status === 409) {
+                    setAuthView('login');
+                    loginForm?.querySelector('#loginEmail')?.setAttribute('value', email);
+                    const loginEmailField = loginForm?.querySelector('#loginEmail');
+                    if (loginEmailField) {
+                        loginEmailField.value = email;
+                    }
+                }
+
+                return;
+            }
+
+            const user = payload?.user;
+
+            saveSession({
+                role: user?.role || role,
+                name: user?.name || name,
+                email: user?.email || email
+            });
+
+            registerForm.reset();
+            updateRegisterRoleFields();
+            updateAuthUi();
+            setMessage(registerSuccess, `${normalizeRoleLabel(user?.role || role)}konto fuer ${user?.name || name} wurde erstellt und angemeldet.`);
+            window.setTimeout(() => {
+                redirectAfterAuth({
+                    role: user?.role || role
+                });
+            }, 450);
+        } catch {
+            setMessage(registerError, 'Server nicht erreichbar. Bitte pruefe, ob der Nailit-Server laeuft.');
         }
-
-        const account = {
-            role,
-            name,
-            email,
-            password,
-            trade,
-            radius,
-            createdAt: new Date().toISOString()
-        };
-
-        accounts.push(account);
-        saveAccounts(accounts);
-        saveSession({
-            role: account.role,
-            name: account.name,
-            email: account.email
-        });
-
-        registerForm.reset();
-        updateRegisterRoleFields();
-        updateAuthUi();
-        setMessage(registerSuccess, `${normalizeRoleLabel(role)}konto fuer ${name} wurde erstellt und angemeldet.`);
     });
 }
 
 if (loginForm) {
-    loginForm.addEventListener('submit', (event) => {
+    loginForm.addEventListener('submit', async (event) => {
         event.preventDefault();
         clearMessages();
 
@@ -3694,24 +3822,49 @@ if (loginForm) {
         const email = String(formData.get('loginEmail') || '').trim().toLowerCase();
         const password = String(formData.get('loginPassword') || '');
 
-        const account = getAccounts().find((entry) => {
-            return entry.email === email && entry.password === password;
-        });
-
-        if (!account) {
-            setMessage(loginError, 'Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort pruefen.');
+        if (!email || !password) {
+            setMessage(loginError, 'Bitte E-Mail und Passwort eingeben.');
             return;
         }
 
-        saveSession({
-            role: account.role,
-            name: account.name,
-            email: account.email
-        });
+        try {
+            const response = await fetch('/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    email,
+                    password
+                })
+            });
 
-        loginForm.reset();
-        updateAuthUi();
-        setMessage(loginSuccess, `${normalizeRoleLabel(account.role)}konto mit ${email} wurde erfolgreich angemeldet.`);
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                setMessage(loginError, payload.error || 'Anmeldung fehlgeschlagen. Bitte E-Mail und Passwort pruefen.');
+                return;
+            }
+
+            const user = payload?.user || {};
+
+            saveSession({
+                role: user.role,
+                name: user.name,
+                email: user.email
+            });
+
+            loginForm.reset();
+            updateAuthUi();
+            setMessage(loginSuccess, `${normalizeRoleLabel(user.role)}konto mit ${user.email} wurde erfolgreich angemeldet.`);
+            window.setTimeout(() => {
+                redirectAfterAuth({
+                    role: user.role
+                });
+            }, 350);
+        } catch {
+            setMessage(loginError, 'Server nicht erreichbar. Bitte pruefe, ob der Nailit-Server laeuft.');
+        }
     });
 }
 
@@ -3719,11 +3872,47 @@ if (logoutButton) {
     logoutButton.addEventListener('click', () => {
         clearSession();
         clearMessages();
-        openAuthSection('login');
+        closeAuthModal();
         updateAuthUi();
-        setMessage(loginSuccess, 'Du wurdest abgemeldet.');
+        showAppToast('Du wurdest erfolgreich abgemeldet.', 'success');
     });
 }
+
+authForgotLinks.forEach((link) => {
+    link.addEventListener('click', async (event) => {
+        event.preventDefault();
+        clearMessages();
+
+        const email = String(loginForm?.querySelector('#loginEmail')?.value || '').trim().toLowerCase();
+
+        if (!email) {
+            setMessage(loginError, 'Bitte gib zuerst deine E-Mail im Login-Feld ein.');
+            loginForm?.querySelector('#loginEmail')?.focus();
+            return;
+        }
+
+        try {
+            const response = await fetch('/api/auth/forgot-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ email })
+            });
+
+            const payload = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                setMessage(loginError, payload.error || 'Passwort-Reset konnte nicht gestartet werden.');
+                return;
+            }
+
+            setMessage(loginSuccess, payload.message || 'Wenn ein Konto existiert, wurden weitere Schritte ausgeliefert.');
+        } catch {
+            setMessage(loginError, 'Server nicht erreichbar. Bitte pruefe, ob der Nailit-Server laeuft.');
+        }
+    });
+});
 
 document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
     anchor.addEventListener('click', function(event) {
@@ -3731,6 +3920,12 @@ document.querySelectorAll('a[href^="#"]').forEach((anchor) => {
         if (targetSelector === '#ai-diagnose') {
             event.preventDefault();
             openAiDiagnoseModal();
+            return;
+        }
+
+        if (targetSelector === '#accounts') {
+            event.preventDefault();
+            openAuthSection(this.dataset.authView || 'login');
             return;
         }
 

@@ -621,7 +621,7 @@
             </div>
         </section>
     </div>
-    <script src="script.js"></script>
+    <script src="script.js?v=20260328"></script>
     <script>
     /* ── Hero scanner actions + preview ── */
     (function() {
@@ -793,6 +793,68 @@
                     localStorage.setItem('nailit-theme', 'dark');
                 }
             });
+        }
+    })();
+    </script>
+    <script>
+    (function() {
+        function setAuthView(view) {
+            var isRegister = view !== 'login';
+            var registerForm = document.getElementById('registerForm');
+            var loginForm = document.getElementById('loginForm');
+            var tabs = document.querySelectorAll('.auth-tab');
+
+            tabs.forEach(function(tab) {
+                var tabView = tab.getAttribute('data-auth-view');
+                tab.classList.toggle('is-active', tabView === (isRegister ? 'register' : 'login'));
+            });
+
+            if (registerForm) {
+                registerForm.classList.toggle('is-active', isRegister);
+            }
+
+            if (loginForm) {
+                loginForm.classList.toggle('is-active', !isRegister);
+            }
+        }
+
+        function openAuth(view) {
+            var accounts = document.getElementById('accounts');
+            if (!accounts) {
+                return;
+            }
+
+            setAuthView(view || 'login');
+            accounts.classList.remove('is-hidden');
+            document.body.classList.add('modal-open');
+        }
+
+        function closeAuth() {
+            var accounts = document.getElementById('accounts');
+            if (!accounts) {
+                return;
+            }
+
+            accounts.classList.add('is-hidden');
+            document.body.classList.remove('modal-open');
+        }
+
+        document.addEventListener('click', function(event) {
+            var trigger = event.target.closest('[data-auth-view], a[href="#accounts"]');
+            if (trigger) {
+                event.preventDefault();
+                openAuth(trigger.getAttribute('data-auth-view') || 'login');
+                return;
+            }
+
+            if (event.target.closest('#authModalClose') || event.target.closest('#authModalBackdrop')) {
+                event.preventDefault();
+                closeAuth();
+            }
+        }, true);
+
+        if (window.location.hash === '#accounts') {
+            openAuth('login');
         }
     })();
     </script>

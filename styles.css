@@ -3743,6 +3743,53 @@ textarea {
     margin-top: 4px;
 }
 
+.app-toast {
+    position: fixed;
+    right: 18px;
+    bottom: 18px;
+    z-index: 2500;
+    max-width: min(88vw, 360px);
+    padding: 12px 16px;
+    border-radius: 12px;
+    border: 1px solid rgba(0, 0, 0, 0.14);
+    background: #ffffff;
+    color: #1f1f1f;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.2);
+    font-size: 0.92rem;
+    font-weight: 600;
+    line-height: 1.35;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.app-toast.is-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.app-toast.is-hidden {
+    pointer-events: none;
+}
+
+.app-toast.is-success {
+    border-color: rgba(14, 116, 67, 0.28);
+    background: #e8f7ee;
+    color: #0f5132;
+}
+
+.app-toast.is-error {
+    border-color: rgba(145, 36, 36, 0.28);
+    background: #fdecec;
+    color: #7f1d1d;
+}
+
+.app-toast.is-info {
+    border-color: rgba(22, 78, 99, 0.24);
+    background: #e8f5fb;
+    color: #0e4f6d;
+}
+
 .contractor-chat-dialog {
     width: min(760px, 100%);
 }

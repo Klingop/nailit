@@ -197,11 +197,11 @@
                         <div class="scan-chat-messages" id="chatMessages">
                             <div class="scan-msg scan-msg-bot">
                                 <div class="scan-msg-avatar"><i class="fas fa-robot"></i></div>
-                                <div class="scan-msg-bubble">Ich sehe dein Foto! Beschreibe kurz was das Problem ist, damit ich dir den passenden Handwerker empfehlen kann.</div>
+                                <div class="scan-msg-bubble">Ich sehe dein Foto! Eine Beschreibung ist optional. Ich kann den Schaden auch nur ueber das Foto analysieren.</div>
                             </div>
                         </div>
                         <form class="scan-chat-input" id="chatForm">
-                            <input type="text" id="chatInput" placeholder="Beschreibe dein Problem…" autocomplete="off" autofocus>
+                            <input type="text" id="chatInput" placeholder="Beschreibe dein Problem (optional)…" autocomplete="off" autofocus>
                             <button type="submit" id="chatSendBtn"><i class="fas fa-paper-plane"></i></button>
                         </form>
                     </div>
@@ -376,15 +376,47 @@
             if (km<=5) return 0; if (km<=10) return 15; if (km<=15) return 25;
             if (km<=25) return 39; if (km<=50) return 59; return 79;
         }
-        var tradeLabels = { 'sanitär':'Sanitär','elektro':'Elektro','dach':'Dachdecker','maler':'Maler','allround':'Allround' };
+        function normalizeTrade(value) {
+            var normalized = String(value || '').toLowerCase();
+            normalized = normalized
+                .replace(/ä/g, 'ae')
+                .replace(/ö/g, 'oe')
+                .replace(/ü/g, 'ue')
+                .replace(/ß/g, 'ss');
+
+            if (normalized === 'sanitar' || normalized === 'sanitaer') {
+                return 'sanitaer';
+            }
+
+            return normalized;
+        }
+
+        var tradeLabels = { 'sanitaer':'Sanitär','sanitär':'Sanitär','elektro':'Elektro','dach':'Dachdecker','maler':'Maler','allround':'Allround' };
 
         function renderContractors() {
             if (!analysisResult) return;
-            var trade = analysisResult.trade || '';
+            var trade = normalizeTrade(analysisResult.trade || '');
             var list = document.getElementById('contractorList');
             list.innerHTML = '';
 
-            var filtered = businesses.filter(function(b) { return b.trade===trade; });
+            var filtered = [];
+
+            if (Array.isArray(analysisResult.matches) && analysisResult.matches.length) {
+                filtered = analysisResult.matches.map(function(match, index) {
+                    return {
+                        name: match.name,
+                        city: match.city,
+                        trade: trade,
+                        desc: match.specialty || 'Passender Fachbetrieb fuer dieses Problem',
+                        avail: index === 0 ? 'green' : (index === 1 ? 'yellow' : 'red'),
+                        distance: match.distance || '',
+                        score: match.score || ''
+                    };
+                });
+            } else {
+                filtered = businesses.filter(function(b) { return normalizeTrade(b.trade) === trade; });
+            }
+
             if (selectedCity) filtered = filtered.filter(function(b) { return b.city===selectedCity; });
 
             if (userLat !== null) {
@@ -404,23 +436,31 @@
                 var card = document.createElement('div');
                 card.className = 'scan-contractor-card';
                 var distHtml = '';
-                if (b._dist !== undefined) {
+                if (b.distance) {
+                    distHtml = '<div class="scan-contractor-distance"><i class="fas fa-route"></i> '
+                        + b.distance + '</div>';
+                } else if (b._dist !== undefined) {
                     var km = Math.round(b._dist*10)/10, anfahrt = getAnfahrt(km);
                     distHtml = '<div class="scan-contractor-distance"><i class="fas fa-route"></i> '
                         + km + ' km - Anfahrt: ' + (anfahrt===0 ? '<strong style="color:#22c55e">Kostenlos</strong>' : anfahrt+' €') + '</div>';
                 }
+                var chatHref = 'direct-chat.html?chatBusiness=' + encodeURIComponent(b.name)
+                    + '&chatCity=' + encodeURIComponent(b.city || 'Berlin')
+                    + '&chatTrade=' + encodeURIComponent(tradeLabels[trade] || trade || 'Handwerk')
+                    + '&scope=direct-shared';
                 card.innerHTML = '<div class="scan-contractor-info">'
                     + '<p class="scan-contractor-name"><span class="scan-contractor-avail '+b.avail+'"></span>'+b.name+'</p>'
                     + '<div class="scan-contractor-meta"><span><i class="fas fa-map-marker-alt"></i>'+b.city+'</span><span><i class="fas fa-wrench"></i>'+b.desc+'</span></div>'
-                    + '<div class="scan-contractor-price"><i class="fas fa-tag"></i> ab '+b.priceFrom+' € - '+b.priceTo+' €</div>'
+                    + (b.score ? '<div class="scan-contractor-price"><i class="fas fa-star"></i> '+b.score+'</div>' : '')
+                    + ((!b.score && b.priceFrom !== undefined) ? '<div class="scan-contractor-price"><i class="fas fa-tag"></i> ab '+b.priceFrom+' € - '+b.priceTo+' €</div>' : '')
                     + distHtml + '</div>'
                     + '<div class="scan-contractor-actions">'
-                    + '<a href="tel:'+b.phone+'" class="scan-call-btn"><i class="fas fa-phone"></i> Anrufen</a>'
+                    + '<a href="'+chatHref+'" class="scan-call-btn"><i class="fas fa-comments"></i> Direkt chatten</a>'
                     + '<a href="contractors.html?q='+encodeURIComponent(b.name)+'" class="scan-view-btn"><i class="fas fa-arrow-right"></i> Details</a>'
                     + '</div>';
                 list.appendChild(card);
             });
-            document.getElementById('allContractorsLink').href = 'contractors.html?trade=' + encodeURIComponent(trade);
+            document.getElementById('allContractorsLink').href = 'contractors.html?trade=' + encodeURIComponent(trade || 'allround');
         }
 
         function showResults(data) {
@@ -447,7 +487,7 @@
                 if (!response.ok) { var err = await response.json().catch(function(){return{};}); throw new Error(err.error||'Analyse fehlgeschlagen'); }
                 var result = await response.json();
                 chatHistory.push({ role:'assistant', content: result.title+': '+result.summary });
-                var tradeLabel = tradeLabels[result.trade] || result.trade;
+                var tradeLabel = tradeLabels[normalizeTrade(result.trade)] || result.trade;
                 addMsg('<strong>Analyse: '+result.title+'</strong><br><br>'+result.summary+'<br><br><strong>Du brauchst: '+tradeLabel+'</strong><br>Priorität: '+result.priority+' | Sicherheit: '+result.confidence, 'bot');
                 showResults(result);
                 chatInput.placeholder = 'Folgefrage stellen...';
@@ -477,17 +517,38 @@
             chatForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 var msg = chatInput.value.trim();
+
+                if (firstMessage) {
+                    firstMessage = false;
+                    if (msg) {
+                        addMsg(msg, 'user');
+                        chatHistory.push({role:'user',content:msg});
+                    }
+                    chatInput.value = '';
+                    runAnalysis(msg || '');
+                    return;
+                }
+
                 if (!msg) return;
                 addMsg(msg, 'user');
                 chatInput.value = '';
-                if (firstMessage) { firstMessage = false; chatHistory.push({role:'user',content:msg}); runAnalysis(msg); }
-                else { sendFollowUp(msg); }
+                sendFollowUp(msg);
             });
         }
 
         if (!imageDataUrl) {
             document.querySelector('.scan-photo-card').style.display = 'none';
             document.querySelector('.scan-chat .scan-msg-bubble').innerHTML = 'Kein Foto gefunden. Kein Problem! Beschreibe einfach dein Problem und ich helfe dir.';
+        } else {
+            setTimeout(function() {
+                if (!firstMessage) {
+                    return;
+                }
+
+                firstMessage = false;
+                addMsg('Ich starte jetzt die Fotoanalyse automatisch. Du bekommst gleich den passenden Loesungsvorschlag und geeignete Betriebe.', 'bot');
+                runAnalysis('');
+            }, 350);
         }
 
         var locationBtn = document.getElementById('locationBtn');
